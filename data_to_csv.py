@@ -112,12 +112,12 @@ print("DataFrame 열:", df.columns.tolist())
 # 타임스탬프 생성
 current_time = datetime.datetime.now()
 if "sample_time" in df.columns:
-    max_sample_time = df["sample_time"].max()
+    max_sample_time = int(df["sample_time"].max())  # int로 변환
     start_time = current_time - datetime.timedelta(milliseconds=max_sample_time)
     
     # sample_time을 이용해 실제 타임스탬프 생성하고 새로운 timestamp 열 추가
     df["timestamp"] = df["sample_time"].apply(
-        lambda x: (start_time + datetime.timedelta(milliseconds=x)).strftime("%Y-%m-%d %H:%M:%S")
+        lambda x: (start_time + datetime.timedelta(milliseconds=int(x))).strftime("%Y-%m-%d %H:%M:%S")
     )
 else:
     # sample_time이 없으면 현재 시간에서 약간의 시간차를 두고 생성
