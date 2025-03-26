@@ -42,31 +42,22 @@ class SensorControl(ttk.LabelFrame):
         display_frame.pack(fill=tk.X, padx=5, pady=5)
         
         # 7세그먼트 디스플레이 캔버스
-        self.canvas = tk.Canvas(display_frame, width=300, height=100, bg='black')
+        self.canvas = tk.Canvas(display_frame, width=300, height=80, bg='black')
         self.canvas.pack(padx=5, pady=5)
         
         # 7세그먼트 좌표 정의
         self.segments = {
-            'top': [(50, 20), (250, 20)],
-            'top_left': [(50, 20), (50, 80)],
-            'top_right': [(250, 20), (250, 80)],
-            'middle': [(50, 80), (250, 80)],
-            'bottom_left': [(50, 80), (50, 140)],
-            'bottom_right': [(250, 80), (250, 140)],
-            'bottom': [(50, 140), (250, 140)]
+            'top': [(10, 5), (50, 5)],
+            'top_left': [(10, 5), (10, 25)],
+            'top_right': [(50, 5), (50, 25)],
+            'middle': [(10, 25), (50, 25)],
+            'bottom_left': [(10, 25), (10, 45)],
+            'bottom_right': [(50, 25), (50, 45)],
+            'bottom': [(10, 45), (50, 45)]
         }
         
         # 7세그먼트 디스플레이 초기화
         self.setup_segment_display()
-        
-        # 그래프 선택 프레임
-        graph_frame = ttk.LabelFrame(self, text="그래프 설정")
-        graph_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        # 그래프 선택 콤보박스
-        self.graph_combo = ttk.Combobox(graph_frame, state="readonly", width=30)
-        self.graph_combo.pack(fill=tk.X, padx=5, pady=5)
-        self.graph_combo.bind('<<ComboboxSelected>>', self.on_graph_selected)
         
         # 초기 센서 목록 업데이트
         self.update_sensor_list({})
@@ -153,12 +144,6 @@ class SensorControl(ttk.LabelFrame):
                 unit = SENSOR_UNITS.get(self.selected_sensor, "")
                 self.display_value(value, unit)
 
-    def on_graph_selected(self, event=None):
-        """그래프 선택 이벤트 핸들러"""
-        selected_sensor = self.graph_combo.get()
-        if selected_sensor:
-            self.data_processor.set_selected_graph_sensor(selected_sensor)
-
     def setup_segment_display(self):
         """7세그먼트 디스플레이 초기화"""
         # 각 자리의 세그먼트 생성
@@ -166,28 +151,28 @@ class SensorControl(ttk.LabelFrame):
         
         # 4자리 디스플레이 생성
         for pos in range(4):
-            x_offset = 20 + pos * 80  # 각 자리 사이 간격
+            x_offset = 10 + pos * 60  # 각 자리 사이 간격 감소
             
             # 각 자리의 세그먼트 좌표 계산
             self.segments[pos] = {
-                'A': self.canvas.create_line(x_offset+10, 20, x_offset+60, 20, width=5, fill='dark gray'),
-                'B': self.canvas.create_line(x_offset+60, 25, x_offset+60, 55, width=5, fill='dark gray'),
-                'C': self.canvas.create_line(x_offset+60, 65, x_offset+60, 95, width=5, fill='dark gray'),
-                'D': self.canvas.create_line(x_offset+10, 100, x_offset+60, 100, width=5, fill='dark gray'),
-                'E': self.canvas.create_line(x_offset+10, 65, x_offset+10, 95, width=5, fill='dark gray'),
-                'F': self.canvas.create_line(x_offset+10, 25, x_offset+10, 55, width=5, fill='dark gray'),
-                'G': self.canvas.create_line(x_offset+10, 60, x_offset+60, 60, width=5, fill='dark gray'),
+                'A': self.canvas.create_line(x_offset+5, 10, x_offset+40, 10, width=2, fill='dark gray'),  # 선 두께 감소
+                'B': self.canvas.create_line(x_offset+40, 15, x_offset+40, 35, width=2, fill='dark gray'),
+                'C': self.canvas.create_line(x_offset+40, 40, x_offset+40, 60, width=2, fill='dark gray'),
+                'D': self.canvas.create_line(x_offset+5, 65, x_offset+40, 65, width=2, fill='dark gray'),
+                'E': self.canvas.create_line(x_offset+5, 40, x_offset+5, 60, width=2, fill='dark gray'),
+                'F': self.canvas.create_line(x_offset+5, 15, x_offset+5, 35, width=2, fill='dark gray'),
+                'G': self.canvas.create_line(x_offset+5, 35, x_offset+40, 35, width=2, fill='dark gray'),
             }
             
             # 두 번째 자리에 소수점 추가
             if pos == 1:
                 self.segments[pos]['DOT'] = self.canvas.create_oval(
-                    x_offset+65, 90, x_offset+75, 100, fill='dark gray', outline='dark gray'
+                    x_offset+45, 55, x_offset+50, 60, fill='dark gray', outline='dark gray'  # 소수점 크기 감소
                 )
                 
         # 단위 표시 텍스트
         self.unit_text = self.canvas.create_text(
-            280, 50, text="", fill="white", font=(FONT_FAMILY, 12)
+            250, 30, text="", fill="white", font=(FONT_FAMILY, 10)  # 폰트 크기 감소
         )
         
         # 숫자별 세그먼트 패턴 정의

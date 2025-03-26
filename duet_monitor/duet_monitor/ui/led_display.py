@@ -65,18 +65,33 @@ class LedDisplay(ttk.LabelFrame):
         self.status_led = self.status_canvas.create_oval(2, 2, LED_SIZE-2, LED_SIZE-2, fill='gray')
         
     def setup_basic_led(self):
-        """기본 LED 디스플레이 설정"""
+        """기본 LED 표시 설정"""
         # LED 패널
-        led_frame = ttk.LabelFrame(self, text="센서 상태 LED")
-        led_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.led_frame = ttk.Frame(self)
+        self.led_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # LED 패널 내부에 그리드 생성
-        self.led_grid = ttk.Frame(led_frame)
-        self.led_grid.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # LED 그리드
+        self.led_grid = ttk.Frame(self.led_frame)
+        self.led_grid.pack(fill=tk.BOTH, expand=True)
         
-        # 초기 LED 생성 (처음에는 비어있음)
-        self.placeholder_label = ttk.Label(self.led_grid, text="데이터를 수신하면 LED가 표시됩니다")
-        self.placeholder_label.grid(row=0, column=0, padx=10, pady=20)
+        # LED 크기 설정
+        self.digit_width = 15  # 더 작은 크기로 조정
+        self.digit_height = 8  # 더 작은 크기로 조정
+        
+        # LED 색상 설정
+        self.on_color = "#00ff00"  # 켜진 상태 색상
+        self.off_color = "#003300"  # 꺼진 상태 색상
+        
+        # LED 상태 저장
+        self.leds = {}
+        
+        # 센서 목록이 비어있을 때 표시할 메시지
+        self.placeholder = ttk.Label(
+            self.led_grid,
+            text="센서를 선택하세요",
+            font=("AppleGothic", 10)
+        )
+        self.placeholder.pack(pady=10)
         
     def create_led_display(self):
         """7-세그먼트 LED 디스플레이 생성"""
@@ -110,7 +125,7 @@ class LedDisplay(ttk.LabelFrame):
             3: ['A', 'B', 'C', 'D', 'G'],
             4: ['B', 'C', 'F', 'G'],
             5: ['A', 'C', 'D', 'F', 'G'],
-            6: ['A', 'C', 'D', 'E', 'F', 'G'],
+            5: ['A', 'C', 'D', 'E', 'F', 'G'],
             7: ['A', 'B', 'C'],
             8: ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
             9: ['A', 'B', 'C', 'D', 'F', 'G']
@@ -386,4 +401,43 @@ class LedDisplay(ttk.LabelFrame):
         if is_active:
             self.status_canvas.itemconfig(self.status_led, fill='green')
         else:
-            self.status_canvas.itemconfig(self.status_led, fill='red') 
+            self.status_canvas.itemconfig(self.status_led, fill='red')
+
+    def refresh_sensor_list(self, sensors: List[str]):
+        """센서 목록 새로고침"""
+        # 기존 위젯 제거
+        for widget in self.led_grid.winfo_children():
+            widget.destroy()
+            
+        if not sensors:
+            self.placeholder = ttk.Label(
+                self.led_grid,
+                text="센서를 선택하세요",
+                font=("AppleGothic", 10)
+            )
+            self.placeholder.pack(pady=10)
+            return
+            
+        # 센서별 LED 표시 생성
+        for i, sensor in enumerate(sensors):
+            # 센서 이름 레이블
+            sensor_label = ttk.Label(
+                self.led_grid,
+                text=f"{sensor}:",
+                font=("AppleGothic", 9),
+                anchor=tk.W
+            )
+            sensor_label.grid(row=i, column=0, padx=5, pady=2, sticky=tk.W)
+            
+            # LED 표시
+            led_canvas = tk.Canvas(
+                self.led_grid,
+                width=self.digit_width,
+                height=self.digit_height,
+                bg=self.off_color,
+                highlightthickness=0
+            )
+            led_canvas.grid(row=i, column=1, padx=5, pady=2)
+            
+            # LED 상태 저장
+            self.leds[sensor] = led_canvas 

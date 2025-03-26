@@ -36,7 +36,7 @@ from duet_monitor.ui.sensor_control import SensorControl
 
 # 윈도우 크기 상수 업데이트
 WINDOW_TITLE = "DUET 모니터링 시스템"
-WINDOW_SIZE = "1600x900"  # 가로 길이 증가
+WINDOW_SIZE = "2000x900"  # 가로 길이 증가
 UPDATE_INTERVAL = 1000  # ms
 
 class MainWindow:
@@ -90,11 +90,11 @@ class MainWindow:
         self.setup_style()
         
         # 메인 프레임
-        main_frame = ttk.Frame(self.root)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.main_frame = ttk.Frame(self.root)
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # 하단 프레임 (상태 표시줄)
-        self.bottom_frame = ttk.Frame(main_frame, height=30)
+        self.bottom_frame = ttk.Frame(self.main_frame, height=30)
         self.bottom_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=5, pady=5)
         
         # 성능 모니터링 레이블
@@ -115,11 +115,11 @@ class MainWindow:
         self.status_label.pack(side=tk.RIGHT, padx=5)
         
         # 콘텐츠 프레임 (상단+중단 통합)
-        content_frame = ttk.Frame(main_frame)
-        content_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.content_frame = ttk.Frame(self.main_frame)
+        self.content_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 좌측 제어 패널 영역 - 하나의 LabelFrame으로 통합
-        self.control_frame = ttk.LabelFrame(content_frame, text="제어 패널", width=380)
+        self.control_frame = ttk.LabelFrame(self.content_frame, text="제어 패널", width=380)
         self.control_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
         self.control_frame.pack_propagate(False)  # 너비 고정
         
@@ -151,22 +151,22 @@ class MainWindow:
         self.data_control.pack(fill=tk.X, padx=10, pady=5)
         
         # 중앙 및 우측 콘텐츠 프레임
-        self.right_content_frame = ttk.Frame(content_frame)
+        self.right_content_frame = ttk.Frame(self.content_frame)
         self.right_content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 중앙 영역 (그래프 + 테이블)
-        middle_frame = ttk.Frame(self.right_content_frame, width=400)  # 너비 감소
-        middle_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
-        middle_frame.pack_propagate(False)  # 너비 고정
+        self.middle_frame = ttk.Frame(self.right_content_frame, width=800)  # 너비 감소
+        self.middle_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.middle_frame.pack_propagate(False)  # 너비 고정
         
         # 그래프 영역
-        graph_frame = ttk.LabelFrame(middle_frame, text="센서 데이터 그래프")
-        graph_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.graph_frame = ttk.LabelFrame(self.middle_frame, text="센서 데이터 그래프")
+        self.graph_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 그래프 생성
         self.fig = Figure(figsize=(5, 4))  # 그래프 크기 감소
         self.ax = self.fig.add_subplot(111)
-        self.canvas = FigureCanvasTkAgg(self.fig, master=graph_frame)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.graph_frame)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 그래프 설정
@@ -176,39 +176,40 @@ class MainWindow:
         self.ax.grid(True)
         
         # 데이터 테이블 (그래프 아래)
-        table_frame = ttk.LabelFrame(middle_frame, text="데이터 테이블")
-        table_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.table_frame = ttk.LabelFrame(self.middle_frame, text="데이터 테이블")
+        self.table_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 스크롤바 추가
-        table_scroll = ttk.Scrollbar(table_frame, orient=tk.HORIZONTAL)
+        table_scroll = ttk.Scrollbar(self.table_frame, orient=tk.HORIZONTAL)
         table_scroll.pack(side=tk.BOTTOM, fill=tk.X)
         
-        self.data_table = DataTable(table_frame, xscrollcommand=table_scroll.set)
+        self.data_table = DataTable(self.table_frame, xscrollcommand=table_scroll.set)
         self.data_table.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         table_scroll.config(command=self.data_table.xview)
         
         # 우측 영역 (LED 디스플레이 + 통계)
-        side_frame = ttk.Frame(self.right_content_frame, width=700)  # 너비 증가
-        side_frame.pack(side=tk.RIGHT, fill=tk.BOTH, padx=5, pady=5)
-        side_frame.pack_propagate(False)  # 너비 고정
+        self.side_frame = ttk.Frame(self.right_content_frame, width=900)  # 너비 증가
+        self.side_frame.pack(side=tk.RIGHT, fill=tk.BOTH, padx=5, pady=5)
+        self.side_frame.pack_propagate(False)  # 너비 고정
         
         # LED 디스플레이와 통계를 담을 수평 프레임
-        horizontal_frame = ttk.Frame(side_frame)
-        horizontal_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.horizontal_frame = ttk.Frame(self.side_frame)
+        self.horizontal_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # LED 디스플레이 (왼쪽)
-        led_frame = ttk.LabelFrame(horizontal_frame, text="센서 상태", width=400)  # 너비 증가
-        led_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 2), pady=5)
-        led_frame.pack_propagate(False)  # 크기 고정
+        self.led_frame = ttk.LabelFrame(self.horizontal_frame, text="센서 상태", width=300)  # 너비 유지
+        self.led_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 2), pady=5)
+        self.led_frame.pack_propagate(False)  # 크기 고정
         
-        self.led_display = LedDisplay(led_frame)
+        self.led_display = LedDisplay(self.led_frame)
         self.led_display.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # 통계 뷰 (오른쪽)
-        stats_frame = ttk.LabelFrame(horizontal_frame, text="통계 정보")
-        stats_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(2, 0), pady=5)
+        self.stats_frame = ttk.LabelFrame(self.horizontal_frame, text="통계 정보", width=400)  # 너비 증가
+        self.stats_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(2, 0), pady=5)
+        self.stats_frame.pack_propagate(False)  # 크기 고정
         
-        self.stats_view = StatsView(stats_frame)
+        self.stats_view = StatsView(self.stats_frame)
         self.stats_view.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
     def toggle_mode(self):
@@ -231,6 +232,22 @@ class MainWindow:
         
         if enabled:
             # 경량 모드로 전환
+            # 데이터 테이블 영역 숨김
+            if hasattr(self, 'data_table'):
+                self.data_table.master.pack_forget()  # LabelFrame 전체를 숨김
+                
+            # 통계 뷰 영역 숨김
+            if hasattr(self, 'stats_view'):
+                self.stats_view.master.pack_forget()  # LabelFrame 전체를 숨김
+            
+            # LED 디스플레이 숨김
+            if hasattr(self, 'led_display'):
+                self.led_display.master.pack_forget()  # LED 디스플레이 프레임 전체를 숨김
+            
+            # 그래프 영역 숨김
+            if hasattr(self, 'fig'):
+                self.canvas.get_tk_widget().master.pack_forget()  # 그래프 프레임 숨김
+            
             # 중앙 및 우측 콘텐츠 프레임 숨김
             if hasattr(self, 'right_content_frame'):
                 self.right_content_frame.pack_forget()
@@ -278,6 +295,34 @@ class MainWindow:
             if hasattr(self, 'right_content_frame'):
                 self.right_content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
             
+            # 중앙 영역 (그래프 + 테이블)
+            if hasattr(self, 'middle_frame'):
+                self.middle_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+            
+            # 그래프 영역 표시
+            if hasattr(self, 'fig'):
+                self.canvas.get_tk_widget().master.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            
+            # 데이터 테이블 표시
+            if hasattr(self, 'data_table'):
+                self.data_table.master.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            
+            # 우측 영역 (LED 디스플레이 + 통계)
+            if hasattr(self, 'side_frame'):
+                self.side_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+            
+            # LED 디스플레이와 통계를 담을 수평 프레임
+            if hasattr(self, 'horizontal_frame'):
+                self.horizontal_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+            
+            # LED 디스플레이 표시
+            if hasattr(self, 'led_display'):
+                self.led_display.master.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 2), pady=5)
+            
+            # 통계 뷰 표시
+            if hasattr(self, 'stats_view'):
+                self.stats_view.master.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(2, 0), pady=5)
+            
             # 업데이트 간격 복원
             self.update_interval = UPDATE_INTERVAL  # 1초
             
@@ -300,10 +345,34 @@ class MainWindow:
             
             # UI 업데이트 및 레이아웃 재조정
             self.root.update_idletasks()
+            
+            # 그래프 레이아웃 조정
             if hasattr(self, 'fig'):
                 self.fig.tight_layout()
                 self.canvas.draw()
             
+            # 데이터 테이블 업데이트
+            if hasattr(self, 'data_table'):
+                df = self.data_processor.get_dataframe()
+                if df is not None and not df.empty:
+                    self.data_table.update_table(df)
+            
+            # 통계 정보 업데이트
+            if hasattr(self, 'stats_view'):
+                latest_values = self.data_processor.get_latest_values()
+                self.stats_view.update_stats(latest_values)
+            
+            # LED 디스플레이 업데이트
+            if hasattr(self, 'led_display'):
+                latest_values = self.data_processor.get_latest_values()
+                self.led_display.update_leds(latest_values)
+            
+            # 센서 제어 패널 업데이트
+            if hasattr(self, 'sensor_control'):
+                latest_values = self.data_processor.get_latest_values()
+                self.sensor_control.update_sensor_list(latest_values)
+                self.sensor_control.update_display(latest_values)
+        
         # 업데이트 타이머 재설정
         self.schedule_update()
         

@@ -22,71 +22,68 @@ class StatsView(ttk.LabelFrame):
         
     def setup_ui(self):
         """UI 초기화"""
-        # 스크롤 가능한 프레임 생성
-        self.canvas = tk.Canvas(self)
-        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = ttk.Frame(self.canvas)
+        # 외부 프레임 (고정 높이)
+        outer_frame = ttk.Frame(self)
+        outer_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # 스크롤바 설정
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        # 캔버스 생성
+        self.canvas = tk.Canvas(outer_frame, highlightthickness=0)
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # 스크롤 프레임 바인딩
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
+        # 스크롤바 생성
+        scrollbar = ttk.Scrollbar(outer_frame, orient=tk.VERTICAL, command=self.canvas.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # 캔버스에 프레임 추가
-        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        # 캔버스와 스크롤바 연결
+        self.canvas.configure(yscrollcommand=scrollbar.set)
         
-        # 마우스 휠 스크롤 바인딩
+        # 내부 프레임 생성
+        self.inner_frame = ttk.Frame(self.canvas)
+        
+        # 내부 프레임을 캔버스에 추가
+        self.canvas.create_window((0, 0), window=self.inner_frame, anchor=tk.NW)
+        
+        # 내부 프레임 크기가 변경될 때 스크롤 영역 업데이트
+        self.inner_frame.bind('<Configure>', self._configure_inner_frame)
+        
+        # 마우스 휠 이벤트 바인딩
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
-        
-        # 스크롤바와 캔버스 배치
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
         
         # 빈 통계 정보 표시
         self.display_empty_stats()
         
+    def _configure_inner_frame(self, event):
+        """내부 프레임 크기 변경 이벤트 처리"""
+        # 캔버스의 스크롤 영역을 내부 프레임 크기로 설정
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        
+        # 내부 프레임의 너비를 캔버스 너비로 설정
+        self.canvas.itemconfig(self.canvas.find_withtag("all")[0], width=self.canvas.winfo_width())
+        
     def _on_mousewheel(self, event):
         """마우스 휠 이벤트 처리"""
-        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        if self.canvas.yview() != (0.0, 1.0):  # 스크롤이 필요한 경우에만
+            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         
     def display_empty_stats(self):
         """빈 통계 정보 표시"""
-        empty_label = ttk.Label(self.scrollable_frame, text="데이터 없음", font=STATS_FONT)
+        empty_label = ttk.Label(self.inner_frame, text="데이터 없음", font=STATS_FONT)
         empty_label.pack(padx=5, pady=20)
         
     def create_stats_section(self, label_text: str):
-        """
-        통계 섹션 생성
-        
-        Args:
-            label_text: 섹션 제목
-            
-        Returns:
-            생성된 섹션 프레임
-        """
-        # 섹션 프레임
-        section_frame = ttk.LabelFrame(self.scrollable_frame, text=label_text)
+        """통계 섹션 생성"""
+        section_frame = ttk.LabelFrame(self.inner_frame, text=label_text)
         section_frame.pack(fill=tk.X, padx=5, pady=5)
-        
         return section_frame
         
     def update_stats(self, values: Dict[str, Any]):
-        """
-        통계 정보 업데이트
-        
-        Args:
-            values: 업데이트할 값 딕셔너리
-        """
+        """통계 정보 업데이트"""
         if not values:
             return
             
         try:
             # 이전 통계 정보 삭제
-            for widget in self.scrollable_frame.winfo_children():
+            for widget in self.inner_frame.winfo_children():
                 widget.destroy()
                 
             # 새 통계 정보 표시
@@ -106,7 +103,11 @@ class StatsView(ttk.LabelFrame):
             }
             
             if not numeric_values:
-                ttk.Label(self.scrollable_frame, text="수치 데이터 없음", font=STATS_FONT).pack(padx=5, pady=10)
+                ttk.Label(
+                    self.inner_frame,
+                    text="수치 데이터 없음",
+                    font=STATS_FONT
+                ).pack(padx=5, pady=10)
                 return
                 
             # 센서 별 그룹화
@@ -126,22 +127,22 @@ class StatsView(ttk.LabelFrame):
                             value = f"{value:.2f}"
                         self._add_stat_row(group_frame, f"{sensor}{unit_text}", value)
                         
+            # 스크롤 영역 업데이트
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            
         except Exception as e:
             print(f"통계 업데이트 오류: {e}")
             # 오류 시 기본 메시지 표시
-            for widget in self.scrollable_frame.winfo_children():
+            for widget in self.inner_frame.winfo_children():
                 widget.destroy()
-            ttk.Label(self.scrollable_frame, text=f"통계 표시 오류: {e}", font=STATS_FONT).pack(padx=5, pady=20)
+            ttk.Label(
+                self.inner_frame,
+                text=f"통계 표시 오류: {e}",
+                font=STATS_FONT
+            ).pack(padx=5, pady=20)
             
     def _add_stat_row(self, parent: tk.Widget, label: str, value: Any):
-        """
-        통계 행 추가
-        
-        Args:
-            parent: 부모 위젯
-            label: 레이블
-            value: 값
-        """
+        """통계 행 추가"""
         row_frame = ttk.Frame(parent)
         row_frame.pack(fill=tk.X, padx=5, pady=2)
         
