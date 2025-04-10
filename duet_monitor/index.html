@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMART AIR 유즈케이스 다이어그램</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="usecase-container">
+        <!-- 액터들 -->
+        <div class="actor ai-system">
+            <div class="actor-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                    <circle cx="12" cy="12" r="10" fill="none" stroke="white" stroke-width="2"/>
+                    <circle cx="12" cy="8" r="3" fill="none" stroke="white" stroke-width="2"/>
+                    <path d="M 6,20 C 6,16 12,16 12,16 C 12,16 18,16 18,20" fill="none" stroke="white" stroke-width="2"/>
+                </svg>
+            </div>
+            <span>AI 시스템</span>
+        </div>
+
+        <div class="actor user">
+            <div class="actor-icon">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                    <circle cx="12" cy="12" r="10" fill="none" stroke="white" stroke-width="2"/>
+                    <circle cx="12" cy="8" r="3" fill="none" stroke="white" stroke-width="2"/>
+                    <path d="M 6,20 C 6,16 12,16 12,16 C 12,16 18,16 18,20" fill="none" stroke="white" stroke-width="2"/>
+                </svg>
+            </div>
+            <span>사용자</span>
+        </div>
+
+        <!-- 유즈케이스들 -->
+        <div class="usecases">
+            <div class="usecase">실시간 모니터링</div>
+            <div class="usecase">공기질 데이터 수집</div>
+            <div class="usecase">데이터 시각화</div>
+            <div class="usecase">AI 예측/감지</div>
+            <div class="usecase">기계 예측</div>
+            <div class="usecase">이상 감지</div>
+            <div class="usecase">HVAC 제어</div>
+            <div class="usecase">자동 환기</div>
+            <div class="usecase">온도 조절</div>
+            <div class="usecase">습도 조절</div>
+            <div class="usecase">에너지 관리</div>
+            <div class="usecase">에너지 사용량 분석</div>
+            <div class="usecase">비용 최적화</div>
+        </div>
+
+        <!-- 연결선들 (방사형 구조로 수정) -->
+        <svg class="connections">
+            <!-- AI 시스템에서 나가는 선들 -->
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="4%" />
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="12%" />
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="20%" />
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="28%" />
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="36%" />
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="44%" />
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="52%" />
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="60%" />
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="68%" />
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="76%" />
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="84%" />
+            <line class="connection-line from-ai" x1="15%" y1="50%" x2="40%" y2="92%" />
+            
+            <!-- 사용자에서 나가는 선들 -->
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="4%" />
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="12%" />
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="20%" />
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="28%" />
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="36%" />
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="44%" />
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="52%" />
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="60%" />
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="68%" />
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="76%" />
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="84%" />
+            <line class="connection-line from-user" x1="85%" y1="50%" x2="60%" y2="92%" />
+        </svg>
+    </div>
+</body>
+</html> 
