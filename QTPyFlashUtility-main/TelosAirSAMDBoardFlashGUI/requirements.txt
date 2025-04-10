@@ -1,5 +1,0 @@
-psutil
-Pillow
-pyduinocli
-pycryptodome
-pyserial
