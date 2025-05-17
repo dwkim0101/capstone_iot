@@ -1,0 +1,186 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #1a1a1a;
+    color: white;
+    min-height: 100vh;
+    padding: 2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.usecase-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+    min-height: 800px;
+}
+
+/* 액터 스타일 */
+.actor {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: white;
+    z-index: 2;
+}
+
+.actor-icon {
+    width: 50px;
+    height: 50px;
+    margin-bottom: 0.5rem;
+}
+
+.actor-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.actor.user {
+    top: 50%;
+    right: 5%;
+    transform: translateY(-50%);
+}
+
+.actor.ai-system {
+    top: 50%;
+    left: 5%;
+    transform: translateY(-50%);
+}
+
+/* 유즈케이스 스타일 */
+.usecases {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: 70%;
+    padding: 2rem 0;
+}
+
+.usecase {
+    width: 30%;
+    height: 40px;
+    padding: 0 2rem;
+    border: 1px solid white;
+    border-radius: 20px;
+    text-align: center;
+    background-color: transparent;
+    font-size: 0.9rem;
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 연결선 스타일 */
+.connections {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.connection-line {
+    stroke: white;
+    stroke-width: 1;
+    stroke-dasharray: 4;
+    fill: none;
+}
+
+.from-ai {
+    stroke-dasharray: 4;
+}
+
+.from-user {
+    stroke-dasharray: 4;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 1200px) {
+    .usecase-container {
+        padding: 2rem;
+    }
+
+    .usecases {
+        width: 80%;
+    }
+
+    .actor {
+        position: relative;
+        margin: 2rem 0;
+        transform: none;
+    }
+
+    .actor.user {
+        right: auto;
+    }
+
+    .actor.ai-system {
+        left: auto;
+    }
+
+    .connections {
+        display: none;
+    }
+}
+
+/* 유즈케이스 그룹 스타일 */
+.usecase-group {
+    position: absolute;
+    width: 200px;
+    z-index: 2;
+}
+
+.monitoring {
+    top: 10%;
+    left: 40%;
+}
+
+.prediction {
+    top: 30%;
+    left: 40%;
+}
+
+.control {
+    top: 50%;
+    left: 40%;
+}
+
+.settings {
+    top: 30%;
+    right: 40%;
+}
+
+.energy {
+    top: 70%;
+    left: 40%;
+}
+
+/* 연결선 (extends) */
+.extends-line {
+    position: absolute;
+    border-top: 1px dashed white;
+}
+
+/* 포함선 (includes) */
+.includes-line {
+    position: absolute;
+    border-top: 1px dashed white;
+} 

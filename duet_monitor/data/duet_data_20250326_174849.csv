@@ -1,0 +1,2 @@
+type,id,sample_time,pt1,pt2,temperature,hum,pressure,tvoc,eco2,rawh2,rawethanol,timestamp
+2,817,10549017,"{'pm10_standard': 9, 'pm25_standard': 12, 'pm100_standard': 12, 'particles_03um': 2337, 'particles_05um': 472, 'particles_10um': 78, 'particles_25um': 1, 'particles_50um': 0, 'particles_100um': 0}","{'pm10_standard': 7, 'pm25_standard': 10, 'pm100_standard': 13, 'particles_03um': 1467, 'particles_05um': 377, 'particles_10um': 66, 'particles_25um': 8, 'particles_50um': 4, 'particles_100um': 4}",29.37,34.71,401,123,467,12251,1534,2025-03-26 17:48:49.454490
