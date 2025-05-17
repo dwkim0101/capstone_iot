@@ -7,12 +7,17 @@ import argparse
 import traceback
 import os
 import time
+import threading
 
 from duet_monitor.ui.main_window import MainWindow
 from duet_monitor.ui.mode_selector import ModeSelector, debug_print
 from duet_monitor.core.serial_handler import SerialHandler
 from duet_monitor.core.csv_handler import CsvHandler
 from duet_monitor.core.data_processor import DataProcessor
+from duet_monitor.ui.login_dialog import LoginDialog
+from duet_monitor.mqtt.mqtt_client import publish_mqtt
+from duet_monitor.mqtt.mqtt_config import BROKER, TOPIC
+from duet_monitor.utils.debug import debug_print_main
 
 # 디버깅 상수
 DEBUG = True
@@ -115,52 +120,74 @@ def main():
     """메인 함수"""
     # 디버그 로그 파일 생성
     debug_file = create_debug_file()
-    
+    token = None
     try:
         debug_print_main("애플리케이션 시작")
-        
         # 명령행 인수 파싱
         args = parse_args()
         debug_print_main(f"명령행 인수: {args}")
-        
         # 루트 윈도우 생성
         root = tk.Tk()
         root.withdraw()  # 초기에는 숨김
         debug_print_main("루트 윈도우 생성 및 숨김")
-        
-        # 핸들러 초기화
+        # 1. 로그인/회원가입 대화상자
+        login_dialog = LoginDialog(root)
+        token = login_dialog.get_token()
+        if not token:
+            debug_print_main("로그인/회원가입 취소 또는 실패. 프로그램 종료.")
+            print("로그인 또는 회원가입이 필요합니다. 프로그램을 종료합니다.")
+            return
+        debug_print_main("로그인/회원가입 성공, 토큰 발급 완료.")
+        # 이후 token을 API 인증에 활용 가능
+        # 시리얼 데이터 → MQTT 콜백 함수 정의
+        mqtt_first_result = {'shown': False}
+        def on_serial_data(data):
+            if not token:
+                print("[MQTT 전송 오류] 토큰이 없습니다. 데이터 전송 불가.")
+                return
+            try:
+                from duet_monitor.utils.debug import debug_print_main
+                print(f"[on_serial_data] MQTT publish 호출(스레드): {data}")
+                debug_print_main(f"[on_serial_data] MQTT publish 호출(스레드): {data}")
+                threading.Thread(target=publish_mqtt, args=(token, TOPIC, data, BROKER), daemon=True).start()
+                if not mqtt_first_result['shown']:
+                    import tkinter.messagebox as messagebox
+                    messagebox.showinfo("MQTT 전송", "MQTT 연결 및 데이터 전송이 정상적으로 시작되었습니다.")
+                    mqtt_first_result['shown'] = True
+            except Exception as e:
+                from duet_monitor.utils.debug import debug_print_main
+                print(f"[on_serial_data 예외] {e}")
+                debug_print_main(f"[on_serial_data 예외] {e}")
+                if not mqtt_first_result['shown']:
+                    import tkinter.messagebox as messagebox
+                    messagebox.showerror("MQTT 오류", f"MQTT 전송 오류: {e}")
+                    mqtt_first_result['shown'] = True
+                print(f"[MQTT 전송 오류] {e}")
+        # 핸들러 초기화 (콜백에 MQTT 연동)
         debug_print_main("핸들러 초기화 중...")
         data_processor = DataProcessor()
-        serial_handler = SerialHandler()
+        serial_handler = SerialHandler(data_callback=on_serial_data)
         csv_handler = CsvHandler()
         debug_print_main("핸들러 초기화 완료")
-        
         # 초기 경량 모드 설정
         is_lightweight = args.lightweight
-        
         # --full 옵션이 지정된 경우 전체 모드로 강제 설정
         if args.full:
             is_lightweight = False
             debug_print_main("전체 모드 옵션이 지정됨")
-        
         debug_print_main(f"초기 경량 모드 설정: {is_lightweight}")
-        
         # UI 선택을 건너뛰지 않는 경우
         if not args.skipui:
             debug_print_main("모드 선택 UI 표시 필요")
-            
             # 테스트를 위해 루트 윈도우를 잠시 표시
             root.deiconify()
             root.title("DUET 모니터링 시스템 - 초기화 중")
             root.update()
-            
             # 루트 윈도우가 준비되었는지 확인
             debug_print_main(f"루트 윈도우 상태: 표시됨={root.winfo_viewable()}, "
                           f"너비={root.winfo_width()}, 높이={root.winfo_height()}")
-            
             # 모드 선택 대화상자 표시
             selected_mode = show_mode_selector(root)
-            
             # 모드 선택 취소 시 기본 모드(전체 모드)로 실행
             if selected_mode is None:
                 debug_print_main("모드 선택 취소됨, 기본 모드(전체 모드)로 실행")
@@ -172,22 +199,18 @@ def main():
                 debug_print_main(f"선택된 모드에 따라 경량 모드 설정: {is_lightweight}")
         else:
             debug_print_main("모드 선택 UI 건너뛰기 요청됨")
-        
         # 루트 윈도우 표시
         root.deiconify()
         debug_print_main("루트 윈도우 표시")
-        
         # 메인 윈도우 초기화
         debug_print_main("메인 윈도우 초기화 시작")
         app = MainWindow(root, serial_handler, csv_handler, data_processor)
         debug_print_main("메인 윈도우 초기화 완료")
-        
         # 테스트 모드 설정
         if args.test:
             debug_print_main("테스트 모드 활성화")
             print("테스트 모드로 실행 중...")
             # 테스트 데이터 생성은 MainWindow 클래스에서 처리
-        
         # 경량 모드 설정
         if is_lightweight:
             debug_print_main("경량 모드 활성화")
@@ -197,16 +220,13 @@ def main():
             debug_print_main("전체 모드 활성화")
             print("전체 모드로 실행 중...")
             app.set_lightweight_mode(False)
-        
         # 애플리케이션 실행
         debug_print_main("메인 루프 시작")
         app.run()
         debug_print_main("애플리케이션 종료")
-    
     except Exception as e:
         debug_print_main(f"메인 함수 오류: {e}")
         debug_print_main(traceback.format_exc())
-        
         # 오류 발생 시 사용자에게 메시지 표시
         try:
             import tkinter.messagebox as msgbox
@@ -214,7 +234,6 @@ def main():
                            f"자세한 내용은 logs 폴더의 디버그 로그를 확인하세요.")
         except:
             print(f"심각한 오류 발생: {e}")
-    
     finally:
         # 디버그 로그 파일 닫기
         close_debug_file()

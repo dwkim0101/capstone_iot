@@ -13,6 +13,12 @@ import datetime
 from duet_monitor.config.settings import TIMEOUT, DEFAULT_PORT, DEFAULT_BAUD_RATE, SERIAL_TIMEOUT
 from duet_monitor.utils.helpers import fix_json_string
 
+# MQTT 연동 예시 (메인에서 콜백에 넘겨 사용)
+# from duet_monitor.mqtt.mqtt_client import publish_mqtt
+# def on_serial_data(data):
+#     publish_mqtt(token, topic, data, broker, port)
+# handler = SerialHandler(data_callback=on_serial_data)
+
 class SerialHandler:
     def __init__(self, data_callback: Optional[Callable[[Dict[str, Any]], None]] = None):
         """
@@ -219,6 +225,16 @@ class SerialHandler:
         
         # 콜백 함수 호출
         if self.data_callback:
+            try:
+                from duet_monitor.utils.debug import debug_print_main
+                print(f"[serial_handler:_process_data] 콜백 호출 직전: {data}")
+                debug_print_main(f"[serial_handler:_process_data] 콜백 호출 직전: {data}")
+                # timestamp가 datetime이면 문자열로 변환
+                if 'timestamp' in data and hasattr(data['timestamp'], 'isoformat'):
+                    data['timestamp'] = data['timestamp'].isoformat()
+            except Exception as e:
+                print(f"[serial_handler:_process_data] 콜백 직전 예외: {e}")
+                pass
             self.data_callback(data)
             
     def get_data(self) -> Optional[Dict[str, Any]]:

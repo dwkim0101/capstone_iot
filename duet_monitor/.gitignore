@@ -51,4 +51,10 @@ Desktop.ini
 # 프로젝트 특화
 raspi_sd.img
 kernel8.img
-bcm2710-rpi-3-b-plus.dtb 
+bcm2710-rpi-3-b-plus.dtb
+
+# 환경/민감 정보
+config/api_config.py
+
+# 외부 문서/포트/참조 링크
+config/api_links.py 
