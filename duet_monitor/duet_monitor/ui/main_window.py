@@ -271,7 +271,8 @@ class MainWindow:
     def set_lightweight_mode(self, enabled: bool):
         """경량 모드 설정"""
         self.is_lightweight_mode = enabled
-        
+        # 상태 표시 업데이트
+        status_message_type = getattr(self, 'status_message_type', {"current": None})
         if enabled:
             # 경량 모드로 전환
             # 데이터 테이블 영역 숨김
@@ -302,7 +303,9 @@ class MainWindow:
                 self.data_processor.set_max_rows(500)  # 메모리 사용량 제한
             
             # 상태 표시 업데이트
-            self.status_label.config(text="⚡ 경량 모드 활성화됨", foreground="blue")
+            if status_message_type.get("current") != "error":
+                print("[DEBUG][set_lightweight_mode] 상태바: ⚡ 경량 모드 활성화됨")
+                self.status_label.config(text="⚡ 경량 모드 활성화됨", foreground="blue")
             
             # 데이터 컨트롤 경량 모드 설정
             if hasattr(self, 'data_control') and hasattr(self.data_control, 'lightweight_var'):
@@ -373,7 +376,9 @@ class MainWindow:
                 self.data_processor.set_max_rows(1000)
             
             # 상태 표시 업데이트
-            self.status_label.config(text="준비", foreground="black")
+            if status_message_type.get("current") != "error":
+                print("[DEBUG][set_lightweight_mode] 상태바: 준비")
+                self.status_label.config(text="준비", foreground="black")
             
             # 데이터 컨트롤 일반 모드 설정
             if hasattr(self, 'data_control') and hasattr(self.data_control, 'lightweight_var'):
@@ -626,25 +631,28 @@ class MainWindow:
         # 성능 모니터링 초기화
         self.last_update_time = time.time()
         self.update_count = 0
-        
-        # 상태 업데이트
-        if self.is_lightweight_mode:
-            self.status_label.config(text="데이터 수집 중... (경량 모드)", foreground="blue")
-        else:
-            self.status_label.config(text="데이터 수집 중...", foreground="green")
-        
+        status_message_type = getattr(self, 'status_message_type', {"current": None})
+        if status_message_type.get("current") != "error":
+            if self.is_lightweight_mode:
+                print("[DEBUG][start_collection] 상태바: 데이터 수집 중... (경량 모드)")
+                self.status_label.config(text="데이터 수집 중... (경량 모드)", foreground="blue")
+            else:
+                print("[DEBUG][start_collection] 상태바: 데이터 수집 중...")
+                self.status_label.config(text="데이터 수집 중...", foreground="green")
         # LED 상태 업데이트 (모든 모드에서 공통)
         if hasattr(self, 'led_display'):
             self.led_display.set_status(True)
         
     def stop_collection(self):
         """데이터 수집 중지"""
-        # 상태 업데이트
-        if self.is_lightweight_mode:
-            self.status_label.config(text="준비 (경량 모드)", foreground="blue")
-        else:
-            self.status_label.config(text="준비", foreground="black")
-        
+        status_message_type = getattr(self, 'status_message_type', {"current": None})
+        if status_message_type.get("current") != "error":
+            if self.is_lightweight_mode:
+                print("[DEBUG][stop_collection] 상태바: 준비 (경량 모드)")
+                self.status_label.config(text="준비 (경량 모드)", foreground="blue")
+            else:
+                print("[DEBUG][stop_collection] 상태바: 준비")
+                self.status_label.config(text="준비", foreground="black")
         # LED 상태 업데이트 (모든 모드에서 공통)
         if hasattr(self, 'led_display'):
             self.led_display.set_status(False)

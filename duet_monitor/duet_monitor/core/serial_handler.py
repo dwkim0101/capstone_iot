@@ -9,6 +9,7 @@ import threading
 from typing import Dict, Any, Optional, Callable, List
 from queue import Queue
 import datetime
+import copy
 
 from duet_monitor.config.settings import TIMEOUT, DEFAULT_PORT, DEFAULT_BAUD_RATE, SERIAL_TIMEOUT
 from duet_monitor.utils.helpers import fix_json_string
@@ -16,7 +17,7 @@ from duet_monitor.utils.helpers import fix_json_string
 # MQTT 연동 예시 (메인에서 콜백에 넘겨 사용)
 # from duet_monitor.mqtt.mqtt_client import publish_mqtt
 # def on_serial_data(data):
-#     publish_mqtt(token, topic, data, broker, port)
+#     publish_mqtt(token, f"smartair/{{device_id}}/airquality", data, broker, port)
 # handler = SerialHandler(data_callback=on_serial_data)
 
 class SerialHandler:
@@ -33,7 +34,9 @@ class SerialHandler:
         self.is_connected: bool = False
         self.is_reading: bool = False
         self.read_thread: Optional[threading.Thread] = None
-        self.data_callback = data_callback
+        self.data_callbacks: List[Callable[[Dict[str, Any]], None]] = []
+        if data_callback:
+            self.data_callbacks.append(data_callback)
         self.data_queue: Queue = Queue()
         
         # 버퍼 관련 설정
@@ -223,19 +226,21 @@ class SerialHandler:
         # 데이터 큐에 추가
         self.data_queue.put(data)
         
-        # 콜백 함수 호출
-        if self.data_callback:
+        # 모든 콜백 함수 호출
+        for cb in self.data_callbacks:
             try:
                 from duet_monitor.utils.debug import debug_print_main
-                print(f"[serial_handler:_process_data] 콜백 호출 직전: {data}")
-                debug_print_main(f"[serial_handler:_process_data] 콜백 호출 직전: {data}")
-                # timestamp가 datetime이면 문자열로 변환
-                if 'timestamp' in data and hasattr(data['timestamp'], 'isoformat'):
-                    data['timestamp'] = data['timestamp'].isoformat()
+                data_copy = copy.deepcopy(data)
+                if 'timestamp' in data_copy and hasattr(data_copy['timestamp'], 'isoformat'):
+                    data_copy['timestamp'] = data_copy['timestamp'].isoformat()
+                debug_print_main(f"[serial_handler:_process_data] 콜백 호출 직전: {data_copy}")
             except Exception as e:
                 print(f"[serial_handler:_process_data] 콜백 직전 예외: {e}")
-                pass
-            self.data_callback(data)
+                data_copy = data
+            try:
+                cb(data_copy)
+            except Exception as e:
+                print(f"[serial_handler:_process_data] 콜백 실행 예외: {e}")
             
     def get_data(self) -> Optional[Dict[str, Any]]:
         """
@@ -256,4 +261,10 @@ class SerialHandler:
         Returns:
             List[str]: 포트 목록
         """
-        return [port.device for port in serial.tools.list_ports.comports()] 
+        return [port.device for port in serial.tools.list_ports.comports()]
+
+    def add_data_callback(self, callback: Callable[[Dict[str, Any]], None]):
+        """
+        데이터 수신 콜백 추가
+        """
+        self.data_callbacks.append(callback) 

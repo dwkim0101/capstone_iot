@@ -1,50 +1,51 @@
 import json
-from paho.mqtt import client as mqtt_client
+import requests
 from duet_monitor.utils.debug import debug_print_main
 
-def publish_mqtt(token, topic, payload, broker):
+last_mqtt_response = None
+last_mqtt_status_code = None
+
+def mqtt_publish_only( topic, payload, token=None):
+    global last_mqtt_response
+    global last_mqtt_status_code
+    last_mqtt_status_code = None
+    last_mqtt_response = None
     try:
-        debug_print_main(f"[MQTT] publish_mqtt 함수 진입: broker={broker}, topic={topic}, client_id=smartair-pub-{token[:8]}")
-        print(f"[MQTT] publish_mqtt 함수 진입: broker={broker}, topic={topic}")
-        client_id = f"smartair-pub-{token[:8]}"
-        def on_connect(client, userdata, flags, rc):
-            if rc == 0:
-                debug_print_main("✅ MQTT 연결 성공")
-                print("✅ MQTT 연결 성공")
-                # Swagger 명세에 따라 payload는 JSON string이어야 함
-                mqtt_message = {
-                    "topic": topic,
-                    "payload": json.dumps(payload, default=str)
-                }
-                msg = json.dumps(mqtt_message, ensure_ascii=False)
-                debug_print_main(f"[MQTT] 발행 데이터: {msg}")
-                print(f"[MQTT] 발행 데이터: {msg}")
-                client.publish(topic, msg, qos=1)
+        url = "https://smartair.site/mqtt/receive"  # 실제 서비스 주소로 변경 필요
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "accept": "*/*"
+        }
+        data = {
+            "topic": topic,
+            "payload": payload
+        }
+        debug_print_main(f"[MQTT-REST] POST 요청 시작: {url}")
+        debug_print_main(f"[MQTT-REST] 요청 헤더: {headers}")
+        debug_print_main(f"[MQTT-REST] POST BODY: {data}")
+        debug_print_main(f"[MQTT-REST] 요청 데이터: {data}")
+        try:
+            resp = requests.post(url, headers=headers, json=data, timeout=5)
+            if resp is not None:
+                debug_print_main(f"[MQTT-REST] 응답 코드: {resp.status_code}")
+                debug_print_main(f"[MQTT-REST] 응답 본문: {resp.text}")
+                last_mqtt_response = resp.text
+                last_mqtt_status_code = resp.status_code
             else:
-                debug_print_main(f"❌ MQTT 연결 실패: {rc}")
-                print(f"❌ MQTT 연결 실패: {rc}")
-
-        def on_publish(client, userdata, mid):
-            debug_print_main("✅ 메시지 발행 성공")
-            print("✅ 메시지 발행 성공")
-            client.disconnect()
-
-        def on_disconnect(client, userdata, rc):
-            debug_print_main(f"🔌 MQTT 연결 종료: rc={rc}")
-            print(f"🔌 MQTT 연결 종료: rc={rc}")
-
-        client = mqtt_client.Client(client_id)
-        debug_print_main("[MQTT] 콜백 등록")
-        print("[MQTT] 콜백 등록")
-        client.on_connect = on_connect
-        client.on_publish = on_publish
-        client.on_disconnect = on_disconnect
-        debug_print_main("[MQTT] connect 호출 직전")
-        print("[MQTT] connect 호출 직전")
-        client.connect(broker)
-        debug_print_main("[MQTT] loop_forever 호출")
-        print("[MQTT] loop_forever 호출")
-        client.loop_forever()
+                last_mqtt_status_code = 500
+                last_mqtt_response = "MQTT 서버 응답 없음 (resp is None)"
+                debug_print_main(f"[MQTT-REST] 응답 없음: resp is None")
+        except requests.exceptions.Timeout:
+            last_mqtt_status_code = 598
+            last_mqtt_response = "MQTT 서버 응답 시간 초과"
+            debug_print_main(f"[MQTT-REST 예외] Timeout: {last_mqtt_response}")
+        except requests.exceptions.ConnectionError:
+            last_mqtt_status_code = 599
+            last_mqtt_response = "MQTT 서버 연결 실패"
+            debug_print_main(f"[MQTT-REST 예외] ConnectionError: {last_mqtt_response}")
     except Exception as e:
-        debug_print_main(f"[MQTT 예외] {e}")
-        print(f"[MQTT 예외] {e}") 
+        debug_print_main(f"[MQTT-REST 예외] {e}")
+        last_mqtt_status_code = 500
+        last_mqtt_response = f"예외 발생: {e}"
+    debug_print_main(f"[MQTT-REST][마지막] last_mqtt_status_code: {last_mqtt_status_code}, last_mqtt_response: {last_mqtt_response}") 

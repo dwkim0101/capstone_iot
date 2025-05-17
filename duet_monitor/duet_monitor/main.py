@@ -15,7 +15,7 @@ from duet_monitor.core.serial_handler import SerialHandler
 from duet_monitor.core.csv_handler import CsvHandler
 from duet_monitor.core.data_processor import DataProcessor
 from duet_monitor.ui.login_dialog import LoginDialog
-from duet_monitor.mqtt.mqtt_client import publish_mqtt
+from duet_monitor.mqtt.mqtt_client import mqtt_publish_only, last_mqtt_response, last_mqtt_status_code
 from duet_monitor.mqtt.mqtt_config import BROKER, TOPIC
 from duet_monitor.utils.debug import debug_print_main
 
@@ -138,26 +138,41 @@ def main():
             print("로그인 또는 회원가입이 필요합니다. 프로그램을 종료합니다.")
             return
         debug_print_main("로그인/회원가입 성공, 토큰 발급 완료.")
-        # 이후 token을 API 인증에 활용 가능
         # 시리얼 데이터 → MQTT 콜백 함수 정의
         mqtt_first_result = {'shown': False}
+        status_message_type = {"current": None}
+        status_message_after_id = {"id": None}
         def on_serial_data(data):
+            try:
+                debug_print_main(f"[main.py:on_serial_data] 콜백 진입: {data}")
+                debug_print_main(f"[on_serial_data] last_mqtt_status_code: {last_mqtt_status_code}, last_mqtt_response: {last_mqtt_response}")
+            except Exception as e:
+                print(f"[main.py:on_serial_data] 콜백 진입 debug_print_main 예외: {e}")
             if not token:
                 print("[MQTT 전송 오류] 토큰이 없습니다. 데이터 전송 불가.")
                 return
             try:
-                from duet_monitor.utils.debug import debug_print_main
-                print(f"[on_serial_data] MQTT publish 호출(스레드): {data}")
-                debug_print_main(f"[on_serial_data] MQTT publish 호출(스레드): {data}")
-                threading.Thread(target=publish_mqtt, args=(token, TOPIC, data, BROKER), daemon=True).start()
-                if not mqtt_first_result['shown']:
-                    import tkinter.messagebox as messagebox
-                    messagebox.showinfo("MQTT 전송", "MQTT 연결 및 데이터 전송이 정상적으로 시작되었습니다.")
-                    mqtt_first_result['shown'] = True
+                import copy
+                data_copy = copy.deepcopy(data)
+                if 'timestamp' in data_copy and hasattr(data_copy['timestamp'], 'isoformat'):
+                    data_copy['timestamp'] = data_copy['timestamp'].isoformat()
             except Exception as e:
-                from duet_monitor.utils.debug import debug_print_main
-                print(f"[on_serial_data 예외] {e}")
-                debug_print_main(f"[on_serial_data 예외] {e}")
+                print(f"[on_serial_data] data 복사/타입 변환 예외: {e}")
+                debug_print_main(f"[on_serial_data] data 복사/타입 변환 예외: {e}")
+                return
+            try:
+                debug_print_main(f"[on_serial_data] mqtt_publish_only 호출 직전: {data_copy}")
+                topic_dynamic = f"smartair/{data_copy.get('id', 1)}/airquality"
+                mqtt_publish_only(topic_dynamic, data_copy, token)
+                from duet_monitor.mqtt.mqtt_client import last_mqtt_status_code, last_mqtt_response
+                print(f"[DEBUG][after mqtt_publish_only] last_mqtt_status_code: {last_mqtt_status_code}, last_mqtt_response: {last_mqtt_response}")
+                error_msg = f"[MQTT-REST 오류] (코드: {last_mqtt_status_code}) {last_mqtt_response}"
+                app.root.after(0, show_status_message, error_msg, "red", 5000, "error")
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
+                print(f"[on_serial_data 예외] {e}\n{tb}")
+                debug_print_main(f"[on_serial_data 예외] {e}\n{tb}")
                 if not mqtt_first_result['shown']:
                     import tkinter.messagebox as messagebox
                     messagebox.showerror("MQTT 오류", f"MQTT 전송 오류: {e}")
@@ -166,7 +181,8 @@ def main():
         # 핸들러 초기화 (콜백에 MQTT 연동)
         debug_print_main("핸들러 초기화 중...")
         data_processor = DataProcessor()
-        serial_handler = SerialHandler(data_callback=on_serial_data)
+        serial_handler = SerialHandler()
+        serial_handler.add_data_callback(on_serial_data)
         csv_handler = CsvHandler()
         debug_print_main("핸들러 초기화 완료")
         # 초기 경량 모드 설정
@@ -205,7 +221,26 @@ def main():
         # 메인 윈도우 초기화
         debug_print_main("메인 윈도우 초기화 시작")
         app = MainWindow(root, serial_handler, csv_handler, data_processor)
+        app.status_message_type = status_message_type
         debug_print_main("메인 윈도우 초기화 완료")
+        # UI 상태 메시지 안전 출력 함수
+        def show_status_message(msg, color="red", duration=5000, msg_type=None):
+            print(f"[DEBUG][show_status_message] 상태바 메시지: {msg}, 색상: {color}, 타입: {msg_type}")
+            app.status_label.config(text=msg, foreground=color)
+            app.status_label.update_idletasks()  # 강제 UI 갱신
+            print(f"[DEBUG][show_status_message] 실제 표시값: {app.status_label.cget('text')}")
+            status_message_type["current"] = msg_type
+            # 이전 예약 취소
+            if status_message_after_id["id"] is not None:
+                app.root.after_cancel(status_message_after_id["id"])
+            def reset_status():
+                if status_message_type["current"] == msg_type:
+                    print("[DEBUG][show_status_message] 상태바 메시지 초기화")
+                    app.status_label.config(text="데이터 수집 중...", foreground="blue")
+                    app.status_label.update_idletasks()
+                    status_message_type["current"] = None
+                    status_message_after_id["id"] = None
+            status_message_after_id["id"] = app.root.after(duration, reset_status)
         # 테스트 모드 설정
         if args.test:
             debug_print_main("테스트 모드 활성화")
