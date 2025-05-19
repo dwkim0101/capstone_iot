@@ -108,6 +108,7 @@ class LoginDialog(tk.Toplevel):
         self.resizable(False, False)
         self.configure(bg=WINDOW_BG)
         self.token = None
+        self.refresh_token = None
         self.setup_ui()
         self.grab_set()
         self.focus_set()
@@ -166,6 +167,7 @@ class LoginDialog(tk.Toplevel):
             debug_print_main(f"[로그인 응답] CODE: {resp.status_code} BODY: {resp.text}")
             if resp.status_code == 200:
                 self.token = resp.json().get("accessToken")
+                self.refresh_token = resp.json().get("refreshToken")
                 self.result = "login"
                 self.destroy()
             else:
@@ -189,11 +191,15 @@ class LoginDialog(tk.Toplevel):
 
     def on_cancel(self):
         self.token = None
+        self.refresh_token = None
         self.result = None
         self.destroy()
 
     def get_token(self):
-        return self.token 
+        return self.token
+
+    def get_refresh_token(self):
+        return self.refresh_token
 
     def _remove_korean(self, entry):
         value = entry.get()
