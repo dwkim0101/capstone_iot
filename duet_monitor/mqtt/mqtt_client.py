@@ -13,7 +13,7 @@ def mqtt_publish_only( topic, payload, token=None):
     try:
         url = "https://smartair.site/mqtt/receive"  # 실제 서비스 주소로 변경 필요
         headers = {
-            "Authorization": f"Bearer {token}",
+            "Authorization": f'Bearer {token}',
             "Content-Type": "application/json",
             "accept": "*/*"
         }

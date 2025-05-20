@@ -323,43 +323,76 @@ class LedDisplay(ttk.LabelFrame):
                 if name in values:
                     value = values[name]
                     if isinstance(value, (int, float)) and not isinstance(value, bool):
-                        # 임계값에 따른 색상 설정
-                        if name == 'temperature':
-                            # 온도 범위에 따른 색상
-                            if value > 27:
-                                color = 'red'
-                            elif value > 22:
-                                color = 'yellow'
-                            else:
-                                color = 'green'
-                        elif name == 'humidity':
-                            # 습도 범위에 따른 색상
-                            if value > 70:
+                        # 센서별 공식/권장 정상 범위에 따른 색상
+                        color = 'gray'  # 기본값
+                        # 온도
+                        if name.lower() == 'temperature':
+                            if value < 18:
                                 color = 'blue'
-                            elif value > 30:
+                            elif 18 <= value <= 26:
                                 color = 'green'
-                            else:
+                            elif 26 < value <= 30:
                                 color = 'yellow'
-                        elif 'pm' in name.lower():
-                            # 미세먼지 범위에 따른 색상
-                            if value > 35:
+                            else:
                                 color = 'red'
-                            elif value > 15:
+                        # 습도
+                        elif name.lower() == 'humidity':
+                            if value < 30:
+                                color = 'blue'
+                            elif 30 <= value < 40 or 60 < value <= 70:
+                                color = 'yellow'
+                            elif 40 <= value <= 60:
+                                color = 'green'
+                            else:
+                                color = 'red'
+                        # 압력(일반적으로 980~1050hPa가 정상)
+                        elif name.lower() == 'pressure':
+                            if 980 <= value <= 1050:
+                                color = 'green'
+                            elif 950 <= value < 980 or 1050 < value <= 1080:
                                 color = 'yellow'
                             else:
+                                color = 'red'
+                        # CO2 (eco2)
+                        elif name.lower() == 'eco2':
+                            if 400 <= value <= 1000:
                                 color = 'green'
+                            elif 1000 < value <= 2000:
+                                color = 'yellow'
+                            else:
+                                color = 'red'
+                        # TVOC
+                        elif name.lower() == 'tvoc':
+                            if value <= 200:
+                                color = 'green'
+                            elif 200 < value <= 400:
+                                color = 'yellow'
+                            else:
+                                color = 'red'
+                        # 미세먼지(pm10, pm25, pm100)
+                        elif 'pm10' in name.lower() or 'pm25' in name.lower() or 'pm100' in name.lower():
+                            if value <= 15:
+                                color = 'green'
+                            elif 15 < value <= 35:
+                                color = 'yellow'
+                            else:
+                                color = 'red'
+                        # pt1, pt2 내부 미세먼지 값
+                        elif name.startswith('pt1_') or name.startswith('pt2_'):
+                            if 'pm10standard' in name.lower() or 'pm25standard' in name.lower() or 'pm100standard' in name.lower():
+                                if value <= 15:
+                                    color = 'green'
+                                elif 15 < value <= 35:
+                                    color = 'yellow'
+                                else:
+                                    color = 'red'
+                            else:
+                                color = 'green'  # 기타 파티클은 별도 기준 없음
+                        # 기타 센서(임계값 미정)
                         else:
-                            # 일반 센서의 경우 값에 따른 단순 색상
-                            if value > 80:
-                                color = 'red'
-                            elif value > 60:
-                                color = 'yellow'
-                            else:
-                                color = 'green'
-                                
+                            color = 'green'
                         # LED 색상 업데이트
                         canvas.itemconfig(led, fill=color)
-                        
                         # 레이블에 값 업데이트
                         unit = get_unit_for_sensor(name)
                         self.led_labels[name].config(text=f"{value:.1f} {unit}")

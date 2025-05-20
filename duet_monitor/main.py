@@ -9,6 +9,7 @@ import os
 import time
 import threading
 import requests
+import http.cookies
 
 from duet_monitor.ui.main_window import MainWindow
 from duet_monitor.ui.mode_selector import ModeSelector, debug_print
@@ -163,14 +164,44 @@ def main():
                     debug_print_main("[토큰 재발급 요청] refresh_token이 None/빈값/비문자열입니다. 재로그인 유도.")
                     return None, None
                 debug_print_main(f"[토큰 재발급 요청] refresh_token: {str(refresh_token)[:10]}...")
-                headers = {"Content-Type": "application/json"}
-                # 배열로 보내는 테스트
-                resp = requests.post(REISSUE_URL, json={"refreshToken": [refresh_token]}, headers=headers, timeout=5)
-                debug_print_main(f"[토큰 재발급 응답] status: {resp.status_code}, body: {resp.text}")
+                # refresh_token이 여러 개인 경우 리스트로 받을 수 있도록 처리
+                if isinstance(refresh_token, list):
+                    cookie_str = "; ".join([f"refresh={t}" for t in refresh_token])
+                else:
+                    cookie_str = f"refresh={refresh_token}"
+                headers = {
+                    "Content-Type": "application/json",
+                    "User-Agent": "Mozilla/5.0",
+                    "Cookie": cookie_str
+                }
+                debug_print_main(f"[토큰 재발급 요청] headers: {headers}")
+                # 바디 없이, headers에만 쿠키를 넣어 요청
+                resp = requests.post(REISSUE_URL, headers=headers, timeout=5)
+                debug_print_main(f"[토큰 재발급 응답] status: {resp.status_code}, body: {resp.text}, headers: {dict(resp.headers)}")
                 if resp.status_code == 200:
+                    access_token = (
+                        resp.headers.get("accessToken")
+                        or resp.headers.get("Authorization")
+                        or resp.headers.get("access")
+                    )
+                    set_cookie = resp.headers.get("Set-Cookie")
+                    refresh_token_new = None
+                    if set_cookie:
+                        import http.cookies
+                        cookie = http.cookies.SimpleCookie()
+                        cookie.load(set_cookie)
+                        if "refresh" in cookie:
+                            refresh_token_new = cookie["refresh"].value
+                    debug_print_main(f"[토큰 재발급 성공] accessToken(헤더): {str(access_token)[:10]}..., refresh(Set-Cookie): {str(refresh_token_new)[:10]}...")
+                    return access_token, refresh_token_new
+                elif resp.status_code == 400:
                     data = resp.json()
-                    debug_print_main(f"[토큰 재발급 성공] accessToken: {str(data.get('accessToken'))[:10]}..., refreshToken: {str(data.get('refreshToken'))[:10]}...")
-                    return data.get("accessToken"), data.get("refreshToken")
+                    debug_print_main(f"[토큰 재발급 실패: 400] code: {data.get('code')}, error: {data.get('error')}")
+                    return None, None
+                elif resp.status_code == 401:
+                    data = resp.json()
+                    debug_print_main(f"[토큰 재발급 실패: 401] code: {data.get('code')}, error: {data.get('error')}")
+                    return None, None
                 else:
                     debug_print_main(f"[토큰 재발급 실패] {resp.status_code} {resp.text}")
                     return None, None
@@ -296,8 +327,16 @@ def main():
                             time.sleep(1)
                     else:
                         debug_print_main("[센서 등록 실패] serialNumber 없음")
-                error_msg = f"[MQTT-REST 오류] (코드: {code}) {msg}"
-                app.root.after(0, show_status_message, error_msg, "red", 5000, "error")
+                # 정상(200~299)이 아닌 경우에만 오류 메시지 출력
+                if 200 <= (code or 0) < 300:
+                    success_msg = f"[MQTT-REST 성공] (코드: {code})"
+                    app.root.after(0, show_status_message, success_msg, "green", 3000, "success")
+                    # 성공 시 데이터 수집/그래프 갱신
+                    if hasattr(app, 'data_received_callback'):
+                        app.data_received_callback(data_copy)
+                else:
+                    error_msg = f"[MQTT-REST 오류] (코드: {code}) {msg}"
+                    app.root.after(0, show_status_message, error_msg, "red", 5000, "error")
             except Exception as e:
                 import traceback
                 tb = traceback.format_exc()
@@ -406,7 +445,7 @@ def main():
 def register_sensor(serial_number, name, token):
     url = "https://smartair.site/sensor"
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f'Bearer {token}',
         "Content-Type": "application/json"
     }
     payload = {

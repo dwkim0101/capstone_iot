@@ -196,7 +196,7 @@ class LoginDialog(tk.Toplevel):
         self.destroy()
 
     def get_token(self):
-        return self.token
+        return self.token 
 
     def get_refresh_token(self):
         return self.refresh_token
