@@ -65,6 +65,9 @@ class MainWindow:
         self.update_interval = UPDATE_INTERVAL  # ms
         self.last_update_time = 0
         self.update_count = 0
+        self.update_interval_ms = 1000  # 1초마다 갱신
+        self._update_scheduled = False
+        self._last_sensor_columns = []  # 마지막 센서 컬럼 목록 저장
         
         # UI 초기화
         self.setup_ui()
@@ -83,6 +86,7 @@ class MainWindow:
                 
         # 최초 UI 업데이트 스케줄링
         self.schedule_update()
+        self.schedule_update_graph()
         
     def setup_ui(self):
         """UI 초기화"""
@@ -434,7 +438,7 @@ class MainWindow:
             self.root.after(self.update_interval, self.update_ui)
             
     def update_ui(self):
-        """UI 업데이트"""
+        """UI 업데이트 (성능 레이블 등 최소한만)"""
         try:
             # 성능 모니터링
             current_time = time.time()
@@ -442,51 +446,18 @@ class MainWindow:
                 interval = current_time - self.last_update_time
                 self.update_count += 1
                 avg_interval = interval / self.update_count
-                
-                # 모드에 따른 성능 정보 표시
                 if self.is_lightweight_mode:
                     self.perf_label.config(text=f"경량 모드 | 평균 업데이트 간격: {avg_interval:.2f}초")
                 else:
                     self.perf_label.config(text=f"전체 모드 | 평균 업데이트 간격: {avg_interval:.2f}초")
-                    
             self.last_update_time = current_time
-            
-            # 데이터프레임 가져오기
-            df = self.data_processor.get_dataframe()
-            
-            if df is not None and not df.empty:
-                # 그래프 업데이트 (모든 모드에서 공통)
-                self.update_graph()
-                
-                # LED 디스플레이 업데이트 (모든 모드에서 공통)
-                if hasattr(self, 'led_display'):
-                    latest_values = self.data_processor.get_latest_values()
-                    self.led_display.update_leds(latest_values)
-                    
-                    # 센서 제어 패널의 7세그먼트 디스플레이 업데이트
-                    if hasattr(self, 'sensor_control'):
-                        self.sensor_control.update_sensor_list(latest_values)
-                        self.sensor_control.update_display(latest_values)
-                
-                # 경량 모드가 아닌 경우에만 추가 UI 요소 업데이트
-                if not self.is_lightweight_mode:
-                    # 테이블 업데이트
-                    if hasattr(self, 'data_table'):
-                        self.data_table.update_table(df)
-                    
-                    # 통계 업데이트
-                    if hasattr(self, 'stats_view'):
-                        latest_values = self.data_processor.get_latest_values()
-                        self.stats_view.update_stats(latest_values)
-            
             # 다음 업데이트 예약
             self.schedule_update()
-            
         except Exception as e:
             print(f"UI 업데이트 중 오류: {e}")
             import traceback
             print(traceback.format_exc())
-            
+
     def update_graph(self):
         """그래프 업데이트"""
         from duet_monitor.utils.debug import debug_print_main
@@ -634,28 +605,19 @@ class MainWindow:
         """
         from duet_monitor.utils.debug import debug_print_main
         debug_print_main(f"[MainWindow] data_received_callback 진입: {data}")
-        # 데이터 처리
         self.data_processor.update_dataframe(data)
         df = self.data_processor.get_dataframe()
         debug_print_main(f"[MainWindow] data_received_callback 후 DataFrame 컬럼: {list(df.columns)}")
         debug_print_main(f"[MainWindow] data_received_callback 후 DataFrame 마지막 행: {df.iloc[-1].to_dict() if not df.empty else '없음'}")
-        # 센서 콤보박스/체크박스 자동 갱신
+        # 센서 체크박스는 컬럼이 바뀔 때만 갱신
+        current_columns = list(df.columns) if df is not None else []
+        if current_columns != self._last_sensor_columns:
+            if hasattr(self, 'update_sensor_checkboxes'):
+                self.update_sensor_checkboxes()
+            self._last_sensor_columns = current_columns
+        # graph_view 등은 필요시만 갱신
         if hasattr(self, 'graph_view') and hasattr(self.graph_view, 'update_sensor_list'):
             self.graph_view.update_sensor_list(df)
-        if hasattr(self, 'update_sensor_checkboxes'):
-            self.update_sensor_checkboxes()
-        # 센서가 하나도 선택되지 않았으면 첫 번째 센서를 자동 선택
-        if hasattr(self, 'sensor_vars') and self.sensor_vars:
-            if not any(var.get() for var in self.sensor_vars.values()):
-                first_sensor = next(iter(self.sensor_vars))
-                self.sensor_vars[first_sensor].set(True)
-                debug_print_main(f"[MainWindow] 센서 자동 선택: {first_sensor}")
-        # CSV 파일 업데이트 (데이터 제어에서 처리)
-        if hasattr(self, 'data_control'):
-            self.data_control.append_csv_data(data)
-        # 경량 모드가 아니고 수동 업데이트도 아니면 바로 UI 업데이트
-        if not self.is_lightweight_mode and self.update_interval > 0:
-            self.update_graph()
         
     def on_closing(self):
         """윈도우 종료 이벤트 핸들러"""
@@ -711,3 +673,32 @@ class MainWindow:
         style.configure("LED.TLabel", font=(FONT_FAMILY, 14, "bold"), padding=5)
         style.configure("LED.On.TLabel", foreground="green")
         style.configure("LED.Off.TLabel", foreground="red")
+
+    def schedule_update_graph(self):
+        if not self._update_scheduled:
+            self._update_scheduled = True
+            self.root.after(self.update_interval_ms, self.periodic_update_graph)
+
+    def periodic_update_graph(self):
+        """주기적 그래프/LED/통계/테이블 등 전체 UI 갱신"""
+        self.update_graph()
+        # LED 디스플레이
+        if hasattr(self, 'led_display'):
+            latest_values = self.data_processor.get_latest_values()
+            self.led_display.update_leds(latest_values)
+        # 센서 제어 패널 7세그먼트
+        if hasattr(self, 'sensor_control'):
+            latest_values = self.data_processor.get_latest_values()
+            self.sensor_control.update_sensor_list(latest_values)
+            self.sensor_control.update_display(latest_values)
+        # 테이블/통계 (경량 모드 아닐 때만)
+        if not self.is_lightweight_mode:
+            if hasattr(self, 'data_table'):
+                df = self.data_processor.get_dataframe()
+                if df is not None and not df.empty:
+                    self.data_table.update_table(df)
+            if hasattr(self, 'stats_view'):
+                latest_values = self.data_processor.get_latest_values()
+                self.stats_view.update_stats(latest_values)
+        self._update_scheduled = False
+        self.schedule_update_graph()
