@@ -6,7 +6,8 @@ import tkinter as tk
 import argparse
 import traceback
 import os
-import time
+import time as imported_time  # time 모듈의 이름을 명시적으로 변경
+import time as time_module  # Rename the imported time module to avoid conflicts
 import threading
 import requests
 import http.cookies
@@ -48,7 +49,7 @@ def create_debug_file():
             debug_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
             os.makedirs(debug_dir, exist_ok=True)
             
-            debug_file_path = os.path.join(debug_dir, f"debug_{time.strftime('%Y%m%d_%H%M%S')}.log")
+            debug_file_path = os.path.join(debug_dir, f"debug_{time_module.strftime('%Y%m%d_%H%M%S')}.log")  # Use time_module for strftime
             debug_print_main.log_file = open(debug_file_path, 'w', encoding='utf-8')
             
             debug_print_main(f"디버그 로그 파일 생성됨: {debug_file_path}")
@@ -184,15 +185,8 @@ def main():
                         or resp.headers.get("Authorization")
                         or resp.headers.get("access")
                     )
-                    set_cookie = resp.headers.get("Set-Cookie")
-                    refresh_token_new = None
-                    if set_cookie:
-                        import http.cookies
-                        cookie = http.cookies.SimpleCookie()
-                        cookie.load(set_cookie)
-                        if "refresh" in cookie:
-                            refresh_token_new = cookie["refresh"].value
-                    debug_print_main(f"[토큰 재발급 성공] accessToken(헤더): {str(access_token)[:10]}..., refresh(Set-Cookie): {str(refresh_token_new)[:10]}...")
+                    refresh_token_new = resp.headers.get("refreshToken")
+                    debug_print_main(f"[토큰 재발급 성공] accessToken(헤더): {str(access_token)[:10]}..., refreshToken(헤더): {str(refresh_token_new)[:10]}...")
                     return access_token, refresh_token_new
                 elif resp.status_code == 400:
                     data = resp.json()
@@ -243,6 +237,10 @@ def main():
                     msg = last_mqtt_response
                 debug_print_main(f"[on_serial_data] MQTT 응답 코드: {code}, 메시지: {msg}")
                 print(f"[DEBUG][after mqtt_publish_only] last_mqtt_status_code: {code}, last_mqtt_response: {msg}")
+                
+                # 딜레이 추가
+                time_module.sleep(5)  # Use the renamed time module to avoid conflicts
+
                 # 401 에러 발생 시 토큰 재발급 시도
                 if code == 401:
                     import tkinter.messagebox as messagebox
@@ -314,8 +312,7 @@ def main():
                             debug_print_main(f"[센서 등록 성공] serialNumber: {serial_number}, MQTT 재전송 시도")
                         else:
                             debug_print_main(f"[센서 등록 실패 또는 이미 등록됨] serialNumber: {serial_number}, 그래도 MQTT 재전송 시도")
-                        import time
-                        time.sleep(1)  # 서버 반영 대기
+                        time_module.sleep(1)  # 서버 반영 대기
                         for i in range(3):
                             mqtt_publish_only(topic_dynamic, data_copy, token)
                             from duet_monitor.mqtt.mqtt_client import last_mqtt_status_code, last_mqtt_response
@@ -324,7 +321,7 @@ def main():
                             debug_print_main(f"[센서 등록 후 MQTT 재전송 {i+1}회] 응답 코드: {code}, 메시지: {msg}")
                             if code != 581:
                                 break
-                            time.sleep(1)
+                            time_module.sleep(1)
                     else:
                         debug_print_main("[센서 등록 실패] serialNumber 없음")
                 # 정상(200~299)이 아닌 경우에만 오류 메시지 출력
@@ -462,4 +459,4 @@ def register_sensor(serial_number, name, token):
 
 # 모듈 직접 실행 시
 if __name__ == "__main__":
-    main() 
+    main()
