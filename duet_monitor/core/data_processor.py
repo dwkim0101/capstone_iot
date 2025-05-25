@@ -14,12 +14,15 @@ from ..config.settings import SENSOR_UNITS
 class DataProcessor:
     def __init__(self):
         """데이터 프로세서 초기화"""
+        from duet_monitor.utils.debug import debug_print_main
+        debug_print_main("[DataProcessor] __init__ 호출")
         self.data = []
         self.df = pd.DataFrame()
         self.max_rows = 1000
         self.selected_graph_sensor = None
         self.new_columns = set()  # 새로 추가된 컬럼 추적
         self.latest_values = {}
+        debug_print_main(f"[DataProcessor] 초기 DataFrame 컬럼: {list(self.df.columns)}")
 
     def set_max_rows(self, max_rows: int) -> None:
         """
@@ -62,7 +65,7 @@ class DataProcessor:
 
     def update_dataframe(self, data: Dict[str, Any]) -> bool:
         """
-        데이터프레임에 데이터 추가
+        데이터프레임에 새 데이터 추가
         
         Args:
             data: 추가할 데이터 딕셔너리
@@ -71,36 +74,37 @@ class DataProcessor:
             bool: 성공 여부
         """
         try:
-            # 원본 데이터 복사
-            processed_data = data.copy()
-            
-            # PT1, PT2 데이터 처리 (JSON 문자열 -> 개별 컬럼)
-            self.process_pt_data(processed_data)
-            
-            # 데이터 추가
+            from duet_monitor.utils.debug import debug_print_main
+            debug_print_main(f"[DataProcessor] update_dataframe 진입: {data}")
+            try:
+                processed_data = flatten_dict(data)
+            except Exception as e:
+                debug_print_main(f"[DataProcessor] flatten_dict 예외: {e} (data={data})")
+                processed_data = {}
+            debug_print_main(f"[DataProcessor] flatten_dict 결과: {processed_data}")
             new_df = pd.DataFrame([processed_data])
-            
-            # 새 컬럼 확인
+            debug_print_main(f"[DataProcessor] 새 데이터프레임 생성됨, 컬럼: {list(new_df.columns)}")
             new_columns = set(new_df.columns) - set(self.df.columns)
-            
-            # 데이터프레임 연결
+            if new_columns:
+                debug_print_main(f"[DataProcessor] 새로운 컬럼 발견: {new_columns}")
             if self.df.empty:
                 self.df = new_df
+                debug_print_main("[DataProcessor] 최초 데이터프레임 생성")
             else:
                 self.df = pd.concat([self.df, new_df], ignore_index=True)
-            
-            # 새로 추가된 컬럼 저장
+                debug_print_main(f"[DataProcessor] 데이터프레임 연결됨, 현재 크기: {len(self.df)}")
             self.new_columns.update(new_columns)
-            
-            # 최대 행 수 초과 시 오래된 데이터 삭제
             if len(self.df) > self.max_rows:
                 self.df = self.df.tail(self.max_rows)
-                
-            # 최신 값 업데이트
+                debug_print_main(f"[DataProcessor] 최대 행 수 조정, 현재 크기: {len(self.df)}")
             self.latest_values = processed_data.copy()
-            
+            debug_print_main(f"[DataProcessor] 최신 값 업데이트됨: {self.latest_values}")
+            debug_print_main(f"[DataProcessor] 최종 DataFrame 컬럼: {list(self.df.columns)}")
+            debug_print_main(f"[DataProcessor] 최종 DataFrame 마지막 행: {self.df.iloc[-1].to_dict() if not self.df.empty else '없음'}")
             return True
         except Exception as e:
+            import traceback
+            debug_print_main(f"[DataProcessor] 데이터프레임 업데이트 오류: {e}\n{traceback.format_exc()}")
             print(f"데이터프레임 업데이트 오류: {e}")
             return False
     
@@ -115,45 +119,34 @@ class DataProcessor:
             bool: 성공 여부
         """
         try:
+            from duet_monitor.utils.debug import debug_print_main
+            debug_print_main(f"[DataProcessor] update_dataframe_batch 진입: {data_list}")
             if not data_list:
+                debug_print_main("[DataProcessor] data_list 비어있음")
                 return True
-                
-            # 각 항목 처리
-            processed_data_list = []
-            for data in data_list:
-                # 원본 데이터 복사
-                processed_data = data.copy()
-                
-                # PT1, PT2 데이터 처리
-                self.process_pt_data(processed_data)
-                
-                # 처리된 데이터 추가
-                processed_data_list.append(processed_data)
-            
-            # 데이터프레임 생성
+            processed_data_list = [flatten_dict(data) for data in data_list]
+            debug_print_main(f"[DataProcessor] flatten_dict 결과(배치): {processed_data_list}")
             new_df = pd.DataFrame(processed_data_list)
-            
-            # 새 컬럼 확인
+            debug_print_main(f"[DataProcessor] 새 데이터프레임(배치) 생성됨, 컬럼: {list(new_df.columns)}")
             new_columns = set(new_df.columns) - set(self.df.columns)
-            
-            # 데이터프레임 연결
             if self.df.empty:
                 self.df = new_df
+                debug_print_main("[DataProcessor] 최초 데이터프레임(배치) 생성")
             else:
                 self.df = pd.concat([self.df, new_df], ignore_index=True)
-            
-            # 새로 추가된 컬럼 저장
+                debug_print_main(f"[DataProcessor] 데이터프레임(배치) 연결됨, 현재 크기: {len(self.df)}")
             self.new_columns.update(new_columns)
-            
-            # 최대 행 수 초과 시 오래된 데이터 삭제
             if len(self.df) > self.max_rows:
                 self.df = self.df.tail(self.max_rows)
-                
-            # 최신 값 업데이트
+                debug_print_main(f"[DataProcessor] 최대 행 수 조정(배치), 현재 크기: {len(self.df)}")
             self.latest_values = processed_data_list[-1].copy()
-            
+            debug_print_main(f"[DataProcessor] 배치 최신 값 업데이트됨: {self.latest_values}")
+            debug_print_main(f"[DataProcessor] 배치 최종 DataFrame 컬럼: {list(self.df.columns)}")
+            debug_print_main(f"[DataProcessor] 배치 최종 DataFrame 마지막 행: {self.df.iloc[-1].to_dict() if not self.df.empty else '없음'}")
             return True
         except Exception as e:
+            import traceback
+            debug_print_main(f"[DataProcessor] 데이터프레임 배치 업데이트 오류: {e}\n{traceback.format_exc()}")
             print(f"데이터프레임 배치 업데이트 오류: {e}")
             return False
     
@@ -417,4 +410,25 @@ class DataProcessor:
         
     def get_selected_graph_sensor(self) -> Optional[str]:
         """현재 선택된 그래프 센서 반환"""
-        return self.selected_graph_sensor 
+        return self.selected_graph_sensor
+
+# --- flatten_dict 유틸 함수 추가 ---
+def flatten_dict(d, parent_key='', sep='_'):
+    from duet_monitor.utils.debug import debug_print_main
+    items = []
+    for k, v in d.items():
+        new_key = f'{parent_key}{sep}{k}' if parent_key else k
+        try:
+            if isinstance(v, dict):
+                debug_print_main(f"[flatten_dict] dict 발견: {new_key}")
+                items.extend(flatten_dict(v, new_key, sep=sep).items())
+            elif isinstance(v, (list, set, tuple)):
+                debug_print_main(f"[flatten_dict] list/set/tuple 발견: {new_key}")
+                items.append((new_key, str(v)))
+            else:
+                items.append((new_key, v))
+        except Exception as e:
+            debug_print_main(f"[flatten_dict] 예외: {e} (key={new_key}, value={v})")
+            items.append((new_key, str(v)))
+    debug_print_main(f"[flatten_dict] 결과: {items}")
+    return dict(items)

@@ -223,14 +223,11 @@ class DataControl(ttk.LabelFrame):
     def change_update_interval(self, event=None):
         """UI 업데이트 주기 변경"""
         interval_text = self.update_interval_var.get()
-        
-        # 수동 모드면 업데이트 버튼 활성화
         if interval_text == "수동":
             self.update_button.config(state=tk.NORMAL)
             ms = 0
         else:
             self.update_button.config(state=tk.DISABLED)
-            # 밀리초 단위로 변환
             if interval_text == "1초":
                 ms = 1000
             elif interval_text == "2초":
@@ -242,34 +239,31 @@ class DataControl(ttk.LabelFrame):
             elif interval_text == "30초":
                 ms = 30000
             else:
-                ms = 1000  # 기본값
-        
-        # 경량 모드일 때는 더 긴 간격 사용
+                ms = 1000
         if self.is_lightweight_mode and ms > 0:
             ms *= 2
-            
-        # 메인 윈도우에 간격 변경 알림
-        if hasattr(self, 'parent') and hasattr(self.parent, 'master'):
-            if hasattr(self.parent.master, 'set_update_interval'):
-                self.parent.master.set_update_interval(ms)
-                
+        # MainWindow에 직접 set_update_interval 호출
+        main_window = self.parent.master if hasattr(self.parent, 'master') else None
+        if main_window and hasattr(main_window, 'set_update_interval'):
+            main_window.set_update_interval(ms)
+        
     def change_data_limit(self, event=None):
         """데이터 제한 변경"""
         limit_text = self.data_limit_var.get()
-        
-        # 데이터 프로세서에 제한 설정
         if limit_text == "최근 100개":
             limit = 100
         elif limit_text == "최근 500개":
             limit = 500
         elif limit_text == "최근 1000개":
             limit = 1000
-        else:  # 제한 없음
+        else:
             limit = 0
-            
-        # 데이터 프로세서에 제한 설정
         if hasattr(self, 'data_processor'):
             self.data_processor.set_max_rows(limit)
+        # MainWindow에 직접 set_max_rows 호출(있으면)
+        main_window = self.parent.master if hasattr(self.parent, 'master') else None
+        if main_window and hasattr(main_window, 'data_processor') and hasattr(main_window.data_processor, 'set_max_rows'):
+            main_window.data_processor.set_max_rows(limit)
         
     def manual_update(self):
         """수동 UI 업데이트 실행"""

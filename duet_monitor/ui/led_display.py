@@ -367,8 +367,6 @@ class LedDisplay(ttk.LabelFrame):
                                 color = 'green'
                             elif 200 < value <= 400:
                                 color = 'yellow'
-                            else:
-                                color = 'red'
                         # 미세먼지(pm10, pm25, pm100)
                         elif 'pm10' in name.lower() or 'pm25' in name.lower() or 'pm100' in name.lower():
                             if value <= 15:

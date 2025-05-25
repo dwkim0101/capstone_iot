@@ -172,8 +172,9 @@ class LoginDialog(tk.Toplevel):
                     or resp.headers.get("Authorization") 
                     or resp.headers.get("access")
                 )
-                self.refresh_token = resp.headers.get("refreshToken")
-                debug_print_main(f"[로그인 성공] accessToken(헤더): {str(self.token)[:10]}..., refreshToken(헤더): {str(self.refresh_token)[:10]}...")
+                # Set-Cookie에서 refresh 토큰 추출 (쿠키에서 가져옴)
+                self.refresh_token = resp.cookies.get("refresh")
+                debug_print_main(f"[로그인 성공] accessToken(헤더): {str(self.token)[:10]}..., refreshToken(쿠키): {str(self.refresh_token)[:10]}...")
                 self.result = "login"
                 self.destroy()
             else:

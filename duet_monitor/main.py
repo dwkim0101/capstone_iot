@@ -1,5 +1,6 @@
 import sys
 import tkinter as tk
+from tkinter import messagebox
 import argparse
 import traceback
 import os
@@ -212,102 +213,89 @@ def main():
         status_message_type = {"current": None}
         status_message_after_id = {"id": None}
         def reissue_token(refresh_token):
+            """토큰 재발급 시도"""
             try:
-                if not refresh_token or not isinstance(refresh_token, str) or not refresh_token.strip():
-                    debug_print_main("[토큰 재발급 요청] refresh_token이 None/빈값/비문자열입니다. 재로그인 유도.")
-                    return None, None
-                debug_print_main(f"[토큰 재발급 요청] refresh_token: {str(refresh_token)[:10]}...")
-                # refresh_token이 여러 개인 경우 리스트로 받을 수 있도록 처리
-                if isinstance(refresh_token, list):
-                    cookie_str = "; ".join([f"refresh={t}" for t in refresh_token])
-                else:
-                    cookie_str = f"refresh={refresh_token}"
-                headers = {
-                    "Content-Type": "application/json",
-                    "User-Agent": "Mozilla/5.0",
-                    "Cookie": cookie_str
-                }
-                debug_print_main(f"[토큰 재발급 요청] headers: {headers}")
-                # 바디 없이, headers에만 쿠키를 넣어 요청
-                debug_print_main("[디버깅] requests.post 호출 직전")
-                resp = requests.post(REISSUE_URL, headers=headers, timeout=5)
-                debug_print_main(f"[토큰 재발급 응답] status: {resp.status_code}, body: {resp.text}, headers: {dict(resp.headers)}")
+                debug_print_main("[reissue_token] 토큰 재발급 시도")
+                resp = requests.post(REISSUE_URL, json={"refreshToken": refresh_token}, timeout=5)
+                debug_print_main(f"[reissue_token] 응답 코드: {resp.status_code}, 응답: {resp.text}")
                 if resp.status_code == 200:
-                    access_token = (
-                        resp.headers.get("accessToken")
-                        or resp.headers.get("Authorization")
-                        or resp.headers.get("access")
-                    )
-                    refresh_token_new = resp.headers.get("refreshToken")
-                    debug_print_main(f"[토큰 재발급 성공] accessToken(헤더): {str(access_token)[:10]}..., refreshToken(헤더): {str(refresh_token_new)[:10]}...")
-                    return access_token, refresh_token_new
-                elif resp.status_code == 400:
                     data = resp.json()
-                    debug_print_main(f"[토큰 재발급 실패: 400] code: {data.get('code')}, error: {data.get('error')}")
-                    return None, None
-                elif resp.status_code == 401:
-                    data = resp.json()
-                    debug_print_main(f"[토큰 재발급 실패: 401] code: {data.get('code')}, error: {data.get('error')}")
-                    return None, None
-                else:
-                    debug_print_main(f"[토큰 재발급 실패] {resp.status_code} {resp.text}")
-                    return None, None
+                    return data.get('accessToken'), data.get('refreshToken')
             except Exception as e:
-                debug_print_main(f"[토큰 재발급 예외] {e}")
-                return None, None
+                debug_print_main(f"[reissue_token] 예외 발생: {e}")
+            return None, None
         def on_serial_data(data):
+            """시리얼 데이터 수신 및 MQTT/스냅샷 처리"""
             try:
                 debug_print_main(f"[main.py:on_serial_data] 콜백 진입: {data}")
                 debug_print_main(f"[on_serial_data] last_mqtt_status_code: {last_mqtt_status_code}, last_mqtt_response: {last_mqtt_response}")
             except Exception as e:
                 print(f"[main.py:on_serial_data] 콜백 진입 debug_print_main 예외: {e}")
+            
             nonlocal token, refresh_token, test_401
+            
             if not token:
                 debug_print_main("[MQTT 전송 오류] 토큰이 없습니다. 데이터 전송 불가.")
                 print("[MQTT 전송 오류] 토큰이 없습니다. 데이터 전송 불가.")
                 return
+                
             try:
+                # 데이터 복사 및 타임스탬프 처리
                 import copy
                 data_copy = copy.deepcopy(data)
                 if 'timestamp' in data_copy and hasattr(data_copy['timestamp'], 'isoformat'):
                     data_copy['timestamp'] = data_copy['timestamp'].isoformat()
+                
+                # UI 업데이트를 위한 data_received_callback 호출
+                if hasattr(root, 'data_received_callback'):
+                    root.data_received_callback(data_copy)
             except Exception as e:
                 debug_print_main(f"[on_serial_data] data 복사/타입 변환 예외: {e}")
                 print(f"[on_serial_data] data 복사/타입 변환 예외: {e}")
                 return
+                
             try:
-                debug_print_main(f"[on_serial_data] mqtt_publish_only 호출 직전: {data_copy}")
-                topic_dynamic = f"smartair/{data_copy.get('id', 1)}/airquality"
+                # 디바이스 ID 추출 및 MQTT 토픽 구성
+                device_id = data_copy.get('id', 1)
+                topic_dynamic = f"smartair/{device_id}/airquality"
+                debug_print_main(f"[on_serial_data] mqtt_publish_only 호출 전: {data_copy}")
+                
+                # 스냅샷 핸들러 초기화 (처음 데이터를 받았을 때)
+                if not hasattr(on_serial_data, 'snapshot_initialized'):
+                    from duet_monitor.mqtt.mqtt_client import init_snapshot_handler
+                    init_snapshot_handler(token, str(device_id))
+                    on_serial_data.snapshot_initialized = True
+                    debug_print_main(f"[on_serial_data] 스냅샷 핸들러 초기화 완료 (device_id: {device_id})")
+                
+                # MQTT 메시지 발행
                 if test_401:
                     globals()['last_mqtt_status_code'] = 401
                     globals()['last_mqtt_response'] = '테스트용 401 강제 발생'
                     code = globals()['last_mqtt_status_code']
                     msg = globals()['last_mqtt_response']
                 else:
+                    from duet_monitor.mqtt.mqtt_client import mqtt_publish_only
                     mqtt_publish_only(topic_dynamic, data_copy, token)
                     from duet_monitor.mqtt.mqtt_client import last_mqtt_status_code, last_mqtt_response
                     code = last_mqtt_status_code
                     msg = last_mqtt_response
-                debug_print_main(f"[on_serial_data] MQTT 응답 코드: {code}, 메시지: {msg}")
-                print(f"[DEBUG][after mqtt_publish_only] last_mqtt_status_code: {code}, last_mqtt_response: {msg}")
                 
-                # 딜레이 추가
-                time_module.sleep(5)  # Use the renamed time module to avoid conflicts
-
-                # 401 에러 발생 시 토큰 재발급 시도
-                if code == 401:
-                    import tkinter.messagebox as messagebox
+                debug_print_main(f"[on_serial_data] MQTT 응답 코드: {code}, 메시지: {msg}")
+                
+                # 토큰 관련 오류 처리
+                if code == 401:  # Unauthorized
                     debug_print_main(f"[on_serial_data] 401 발생, refresh_token: {str(refresh_token)[:10]}...")
-                    # refresh_token이 있으면 재발급 시도 (test_401도 동일하게 동작)
+                    
                     if refresh_token:
+                        # 토큰 재발급 시도
                         new_token, new_refresh_token = reissue_token(refresh_token)
                         if new_token and new_refresh_token:
                             token = new_token
                             refresh_token = new_refresh_token
-                            debug_print_main("토큰 재발급 성공, 토큰 갱신 완료. MQTT 재전송 시도.")
-                            # test_401 모드 해제: 이후부터는 실제 서버와 통신
+                            debug_print_main("토큰 재발급 성공. MQTT 재전송 시도.")
                             test_401 = False
-                            # 재시도 1회
+                            
+                            # 재전송
                             if test_401:
                                 globals()['last_mqtt_status_code'] = 401
                                 globals()['last_mqtt_response'] = '테스트용 401 강제 발생'
@@ -318,6 +306,7 @@ def main():
                                 from duet_monitor.mqtt.mqtt_client import last_mqtt_status_code, last_mqtt_response
                                 code = last_mqtt_status_code
                                 msg = last_mqtt_response
+                                
                             debug_print_main(f"[on_serial_data] 재시도 후 MQTT 응답 코드: {code}, 메시지: {msg}")
                             if code == 401:
                                 debug_print_main("[on_serial_data] 토큰 재발급 후에도 401. 프로그램 종료.")
@@ -325,13 +314,14 @@ def main():
                                 root.quit()
                                 return
                         else:
+                            # 토큰 재발급 실패, 로그인 다이얼로그 표시
                             debug_print_main("토큰 재발급 실패. 로그인 다이얼로그로 전환.")
                             messagebox.showwarning("인증 만료", "토큰 재발급에 실패했습니다. 다시 로그인 해주세요.")
                             login_dialog = LoginDialog(root)
                             token = login_dialog.get_token()
                             if hasattr(login_dialog, 'get_refresh_token'):
                                 refresh_token = login_dialog.get_refresh_token()
-                                debug_print_main(f"[재로그인] refresh_token: {str(refresh_token)[:10]}..." if refresh_token else "[재로그인] refresh_token: None")
+                                debug_print_main(f"[재로그인] refresh_token: {str(refresh_token)[:10]}...")
                             else:
                                 refresh_token = None
                                 debug_print_main("[재로그인] LoginDialog에서 refresh_token을 반환하지 않음.")
@@ -340,60 +330,13 @@ def main():
                                 messagebox.showerror("인증 오류", "재로그인에 실패했습니다. 프로그램을 종료합니다.")
                                 root.quit()
                                 return
-                    else:
-                        debug_print_main("refresh_token 없음. 로그인 다이얼로그로 전환.")
-                        messagebox.showwarning("인증 만료", "토큰이 만료되었습니다. 다시 로그인 해주세요.")
-                        login_dialog = LoginDialog(root)
-                        token = login_dialog.get_token()
-                        if hasattr(login_dialog, 'get_refresh_token'):
-                            refresh_token = login_dialog.get_refresh_token()
-                            debug_print_main(f"[재로그인] refresh_token: {str(refresh_token)[:10]}..." if refresh_token else "[재로그인] refresh_token: None")
-                        else:
-                            refresh_token = None
-                            debug_print_main("[재로그인] LoginDialog에서 refresh_token을 반환하지 않음.")
-                        if not token:
-                            debug_print_main("[재로그인] 재로그인 실패. 프로그램 종료.")
-                            messagebox.showerror("인증 오류", "재로그인에 실패했습니다. 프로그램을 종료합니다.")
-                            root.quit()
-                            return
-                # 501 또는 581 에러 발생 시 센서 등록 시도
-                if code == 581:
-                    serial_number = data_copy.get('id') or data_copy.get('serialNumber')
-                    if serial_number:
-                        success = register_sensor(serial_number, "DUET 센서", token)
-                        if success:
-                            debug_print_main(f"[센서 등록 성공] serialNumber: {serial_number}, MQTT 재전송 시도")
-                        else:
-                            debug_print_main(f"[센서 등록 실패 또는 이미 등록됨] serialNumber: {serial_number}, 그래도 MQTT 재전송 시도")
-                        time_module.sleep(1)  # 서버 반영 대기
-                        for i in range(3):
-                            mqtt_publish_only(topic_dynamic, data_copy, token)
-                            from duet_monitor.mqtt.mqtt_client import last_mqtt_status_code, last_mqtt_response
-                            code = last_mqtt_status_code
-                            msg = last_mqtt_response
-                            debug_print_main(f"[센서 등록 후 MQTT 재전송 {i+1}회] 응답 코드: {code}, 메시지: {msg}")
-                            if code != 581:
-                                break
-                            time_module.sleep(1)
-                    else:
-                        debug_print_main("[센서 등록 실패] serialNumber 없음")
-                # 정상(200~299)이 아닌 경우에만 오류 메시지 출력
-                if 200 <= (code or 0) < 300:
-                    success_msg = f"[MQTT-REST 성공] (코드: {code})"
-                    app.root.after(0, show_status_message, success_msg, "green", 3000, "success")
-                    # 성공 시 데이터 수집/그래프 갱신
-                    if hasattr(app, 'data_received_callback'):
-                        app.data_received_callback(data_copy)
-                else:
-                    error_msg = f"[MQTT-REST 오류] (코드: {code}) {msg}"
-                    app.root.after(0, show_status_message, error_msg, "red", 5000, "error")
+        
             except Exception as e:
                 import traceback
                 tb = traceback.format_exc()
                 print(f"[on_serial_data 예외] {e}\n{tb}")
                 debug_print_main(f"[on_serial_data 예외] {e}\n{tb}")
                 if not mqtt_first_result['shown']:
-                    import tkinter.messagebox as messagebox
                     messagebox.showerror("MQTT 오류", f"MQTT 전송 오류: {e}")
                     mqtt_first_result['shown'] = True
                 print(f"[MQTT 전송 오류] {e}")
@@ -440,6 +383,7 @@ def main():
         # 메인 윈도우 초기화
         debug_print_main("메인 윈도우 초기화 시작")
         app = MainWindow(root, serial_handler, csv_handler, data_processor)
+        root.data_received_callback = app.data_received_callback  # 데이터 수신 콜백 연결
         app.status_message_type = status_message_type
         debug_print_main("메인 윈도우 초기화 완료")
         # UI 상태 메시지 안전 출력 함수

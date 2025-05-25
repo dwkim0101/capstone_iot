@@ -8,6 +8,10 @@ import csv
 from datetime import datetime
 import serial.tools.list_ports
 from typing import Optional, Dict, Any
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from ..core.data_collector import DataCollector
 from ..core.data_processor import DataProcessor
 from ..core.serial_handler import SerialHandler
@@ -23,10 +27,6 @@ import os
 import sys
 import platform
 import time
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
-import pandas as pd
 import numpy as np
 
 # UI 컴포넌트
@@ -489,138 +489,107 @@ class MainWindow:
             
     def update_graph(self):
         """그래프 업데이트"""
-        try:
-            # 선택된 센서가 없으면 그래프 초기화
-            if not hasattr(self, 'data_processor') or not hasattr(self, 'sensor_control'):
-                return
-            
-            # 데이터 가져오기
-            df = self.data_processor.get_dataframe()
-            
-            if df is None or df.empty:
-                self.ax.clear()
-                self.ax.set_title("데이터 없음")
-                self.ax.grid(True)
-                self.canvas.draw()
-                return
-            
-            # 그래프 초기화
-            self.ax.clear()
-            
-            # 다중 센서 표시
-            if hasattr(self, 'show_multiple_sensors') and self.show_multiple_sensors:
-                # 선택된 센서 가져오기
-                selected_sensors = self.get_selected_graph_sensors()
-                
-                if not selected_sensors:
-                    # 선택된 센서가 없으면 안내 메시지 표시
-                    self.ax.text(0.5, 0.5, '표시할 센서를 선택하세요', 
-                            horizontalalignment='center', verticalalignment='center',
-                            transform=self.ax.transAxes)
-                else:
-                    # 각 센서별로 그래프 추가
-                    for column in selected_sensors:
-                        if column in df.columns:
-                            # 최근 50개 데이터만 표시
-                            recent_data = df[column].iloc[-50:]
-                            self.ax.plot(range(len(recent_data)), recent_data, label=column)
-                    
-                    # 범례 추가
-                    self.ax.legend(loc='upper right', fontsize='small')
-            else:
-                # 단일 센서 표시 (기존 방식)
-                selected_sensor = self.sensor_control.get_selected_sensor()
-                
-                if selected_sensor and selected_sensor in df.columns:
-                    # 최근 50개 데이터만 표시
-                    recent_data = df[selected_sensor].iloc[-50:]
-                    self.ax.plot(range(len(recent_data)), recent_data)
-                    
-                    # 센서 이름과 단위 표시
-                    from ..config.settings import SENSOR_UNITS
-                    unit = SENSOR_UNITS.get(selected_sensor, "")
-                    title = f"{selected_sensor} {unit}"
-                    self.ax.set_title(title)
-                else:
-                    self.ax.set_title("센서를 선택하세요")
-            
-            # 그래프 공통 설정
+        from duet_monitor.utils.debug import debug_print_main
+        debug_print_main("[MainWindow] update_graph 진입")
+        df = self.data_processor.get_dataframe()
+        debug_print_main(f"[MainWindow] update_graph DataFrame 컬럼: {list(df.columns)}")
+        debug_print_main(f"[MainWindow] update_graph DataFrame 마지막 행: {df.iloc[-1].to_dict() if not df.empty else '없음'}")
+        debug_print_main(f"[MainWindow] update_graph 센서 체크박스: {list(self.sensor_vars.keys()) if hasattr(self, 'sensor_vars') else '없음'}")
+        debug_print_main(f"[MainWindow] update_graph 선택된 센서: {[k for k,v in self.sensor_vars.items() if v.get()] if hasattr(self, 'sensor_vars') else '없음'}")
+        self.ax.clear()
+        if df is None or df.empty:
+            self.ax.set_title("데이터 없음")
             self.ax.grid(True)
-            self.ax.set_xlabel("시간")
-            self.ax.set_ylabel("값")
-            
-            # 그래프 그리기
-            self.fig.tight_layout()
             self.canvas.draw()
-            
-        except Exception as e:
-            print(f"그래프 업데이트 오류: {e}")
-            import traceback
-            traceback.print_exc()
-            
+            return
+        # 다중 센서 모드
+        if hasattr(self, 'show_multiple_sensors') and self.show_multiple_sensors:
+            selected_sensors = self.get_selected_graph_sensors()
+            debug_print_main(f"[MainWindow] 다중센서모드, 선택된 센서들: {selected_sensors}")
+            if not selected_sensors:
+                self.ax.set_title("표시할 센서를 선택하세요")
+            else:
+                for column in selected_sensors:
+                    if column in df.columns:
+                        recent_df = df.tail(100)
+                        x_data = pd.to_datetime(recent_df['timestamp']) if 'timestamp' in recent_df.columns else range(len(recent_df))
+                        color = GRAPH_COLORS.get(column, None)
+                        self.ax.plot(x_data, recent_df[column], label=column, color=color, linewidth=1.5)
+                self.ax.legend(loc='upper right', fontsize='small')
+                self.ax.set_title(", ".join(selected_sensors))
+        else:
+            # 단일 센서 모드: SensorControl 콤보박스 선택만
+            selected_sensor = self.sensor_control.get_selected_sensor() if hasattr(self, 'sensor_control') else None
+            debug_print_main(f"[MainWindow] 단일센서모드, 선택된 센서: {selected_sensor}")
+            if selected_sensor and selected_sensor in df.columns:
+                recent_df = df.tail(100)
+                x_data = pd.to_datetime(recent_df['timestamp']) if 'timestamp' in recent_df.columns else range(len(recent_df))
+                color = GRAPH_COLORS.get(selected_sensor, None)
+                self.ax.plot(x_data, recent_df[selected_sensor], color=color, linewidth=1.5)
+                self.ax.set_title(selected_sensor)
+            else:
+                self.ax.set_title("센서를 선택하세요")
+        self.ax.grid(True, linestyle='--', alpha=0.7)
+        self.ax.set_xlabel("시간")
+        self.ax.set_ylabel("값")
+        if 'timestamp' in df.columns:
+            import matplotlib.dates as mdates
+            self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+            plt.setp(self.ax.get_xticklabels(), rotation=30, ha='right')
+        self.fig.tight_layout()
+        self.canvas.draw()
+        debug_print_main("[MainWindow] 그래프 업데이트 완료")
+        
     def toggle_multi_sensor_graph(self):
         """다중 센서 그래프 토글"""
         if not hasattr(self, 'show_multiple_sensors'):
             self.show_multiple_sensors = True
         else:
             self.show_multiple_sensors = not self.show_multiple_sensors
-            
-        # 버튼 텍스트 업데이트
+        # 버튼 텍스트 및 프레임 표시/숨김
         if self.show_multiple_sensors:
             self.graph_mode_button.config(text="단일 센서 그래프로 전환")
-            # 다중 센서 선택 프레임 표시
             self.multi_sensor_frame.pack(fill=tk.X, padx=5, pady=5, before=self.graph_canvas_frame)
-            # 센서 체크박스 업데이트
             self.update_sensor_checkboxes()
         else:
             self.graph_mode_button.config(text="다중 센서 그래프로 전환")
-            # 다중 센서 선택 프레임 숨김
             self.multi_sensor_frame.pack_forget()
-            
-        # 그래프 업데이트
+        # 그래프 동기화
         self.update_graph()
         
     def update_sensor_checkboxes(self):
         """센서 체크박스 업데이트"""
-        # 기존 체크박스 제거
+        from duet_monitor.utils.debug import debug_print_main
+        debug_print_main("[MainWindow] update_sensor_checkboxes 진입")
         for widget in self.multi_sensor_scrollable_frame.winfo_children():
             widget.destroy()
-            
         self.sensor_vars = {}
         self.sensor_checkboxes = {}
-        
-        # 데이터프레임 가져오기
         df = self.data_processor.get_dataframe()
+        debug_print_main(f"[MainWindow] update_sensor_checkboxes DataFrame 컬럼: {list(df.columns)}")
         if df is None or df.empty:
+            debug_print_main("[MainWindow] update_sensor_checkboxes: DataFrame 비어있음")
             return
-            
-        # 숫자형 센서 컬럼 찾기
-        numeric_columns = [
-            col for col in df.columns 
-            if df[col].dtype in ['int64', 'float64'] and not df[col].apply(lambda x: isinstance(x, bool)).any()
-        ]
-        
-        # 센서별 체크박스 생성
+        numeric_columns = [col for col in df.columns if df[col].dtype in ['int64', 'float64'] and not df[col].apply(lambda x: isinstance(x, bool)).any()]
+        debug_print_main(f"[MainWindow] update_sensor_checkboxes numeric_columns: {numeric_columns}")
         for i, column in enumerate(numeric_columns):
-            var = tk.BooleanVar(value=i < 5)  # 처음 5개 센서는 기본 선택
-            
-            checkbox = ttk.Checkbutton(
-                self.multi_sensor_scrollable_frame,
-                text=column,
-                variable=var,
-                command=self.update_graph
-            )
+            var = tk.BooleanVar(value=False)
+            checkbox = ttk.Checkbutton(self.multi_sensor_scrollable_frame, text=column, variable=var, command=self.update_graph)
             checkbox.grid(row=i//2, column=i%2, sticky=tk.W, padx=5, pady=2)
-            
             self.sensor_vars[column] = var
             self.sensor_checkboxes[column] = checkbox
+            debug_print_main(f"[MainWindow] 센서 체크박스 생성: {column}")
             
     def get_selected_graph_sensors(self):
         """선택된 그래프 센서 목록 반환"""
+        from duet_monitor.utils.debug import debug_print_main
+        debug_print_main("[MainWindow] get_selected_graph_sensors 진입")
         if not hasattr(self, 'sensor_vars') or not self.sensor_vars:
+            debug_print_main("[MainWindow] get_selected_graph_sensors: sensor_vars 없음")
             return []
-            
-        return [sensor for sensor, var in self.sensor_vars.items() if var.get()]
+        selected = [sensor for sensor, var in self.sensor_vars.items() if var.get()]
+        debug_print_main(f"[MainWindow] get_selected_graph_sensors: {selected}")
+        return selected
         
     def manual_update(self):
         """수동 UI 업데이트"""
@@ -660,21 +629,33 @@ class MainWindow:
     def data_received_callback(self, data: Dict[str, Any]):
         """
         시리얼 데이터 수신 콜백
-        
         Args:
             data: 수신된 데이터
         """
+        from duet_monitor.utils.debug import debug_print_main
+        debug_print_main(f"[MainWindow] data_received_callback 진입: {data}")
         # 데이터 처리
         self.data_processor.update_dataframe(data)
-        
+        df = self.data_processor.get_dataframe()
+        debug_print_main(f"[MainWindow] data_received_callback 후 DataFrame 컬럼: {list(df.columns)}")
+        debug_print_main(f"[MainWindow] data_received_callback 후 DataFrame 마지막 행: {df.iloc[-1].to_dict() if not df.empty else '없음'}")
+        # 센서 콤보박스/체크박스 자동 갱신
+        if hasattr(self, 'graph_view') and hasattr(self.graph_view, 'update_sensor_list'):
+            self.graph_view.update_sensor_list(df)
+        if hasattr(self, 'update_sensor_checkboxes'):
+            self.update_sensor_checkboxes()
+        # 센서가 하나도 선택되지 않았으면 첫 번째 센서를 자동 선택
+        if hasattr(self, 'sensor_vars') and self.sensor_vars:
+            if not any(var.get() for var in self.sensor_vars.values()):
+                first_sensor = next(iter(self.sensor_vars))
+                self.sensor_vars[first_sensor].set(True)
+                debug_print_main(f"[MainWindow] 센서 자동 선택: {first_sensor}")
         # CSV 파일 업데이트 (데이터 제어에서 처리)
         if hasattr(self, 'data_control'):
             self.data_control.append_csv_data(data)
-            
         # 경량 모드가 아니고 수동 업데이트도 아니면 바로 UI 업데이트
         if not self.is_lightweight_mode and self.update_interval > 0:
-            # UI 업데이트 필요 없음 - 자동으로 처리됨
-            pass
+            self.update_graph()
         
     def on_closing(self):
         """윈도우 종료 이벤트 핸들러"""
@@ -729,4 +710,4 @@ class MainWindow:
         # LED 디스플레이 스타일
         style.configure("LED.TLabel", font=(FONT_FAMILY, 14, "bold"), padding=5)
         style.configure("LED.On.TLabel", foreground="green")
-        style.configure("LED.Off.TLabel", foreground="red") 
+        style.configure("LED.Off.TLabel", foreground="red")
