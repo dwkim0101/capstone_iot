@@ -166,8 +166,14 @@ class LoginDialog(tk.Toplevel):
             resp = requests.post(LOGIN_URL, json=req_data)
             debug_print_main(f"[로그인 응답] CODE: {resp.status_code} BODY: {resp.text}")
             if resp.status_code == 200:
-                self.token = resp.json().get("accessToken")
-                self.refresh_token = resp.json().get("refreshToken")
+                # 응답 헤더에서 토큰 추출
+                self.token = (
+                    resp.headers.get("accessToken") 
+                    or resp.headers.get("Authorization") 
+                    or resp.headers.get("access")
+                )
+                self.refresh_token = resp.headers.get("refreshToken")
+                debug_print_main(f"[로그인 성공] accessToken(헤더): {str(self.token)[:10]}..., refreshToken(헤더): {str(self.refresh_token)[:10]}...")
                 self.result = "login"
                 self.destroy()
             else:

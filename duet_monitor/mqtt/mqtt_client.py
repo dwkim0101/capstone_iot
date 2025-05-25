@@ -1,11 +1,44 @@
 import json
-import requests
+impordef mqtt_publish_only(topic, payload, token=None):
+    global last_mqtt_response
+    global last_mqtt_status_code
+    global _snapshot_handler
+    
+    last_mqtt_status_code = None
+    last_mqtt_response = None
+    
+    try:
+        # 페이로드가 유효한 JSON 형식인지 확인
+        if isinstance(payload, str):
+            try:
+                payload_data = json.loads(payload)
+            except json.JSONDecodeError:
+                payload_data = payload
+        else:
+            payload_data = payload
+
+        # 스냅샷 핸들러가 초기화되어 있다면 데이터 추가
+        if _snapshot_handler is not None:
+            _snapshot_handler.add_data_point(payload_data)
+            debug_print_main("[MQTT] 스냅샷용 데이터 포인트 추가됨")
+
+        url = "https://smartair.site/mqtt/receive"  # 실제 서비스 주소로 변경 필요sts
+from typing import Optional
 from duet_monitor.utils.debug import debug_print_main
+from duet_monitor.mqtt.mqtt_snapshot_handler import MQTTSnapshotHandler
 
 last_mqtt_response = None
 last_mqtt_status_code = None
+_snapshot_handler: Optional[MQTTSnapshotHandler] = None
 
-def mqtt_publish_only( topic, payload, token=None):
+def init_snapshot_handler(token: str, serial_number: str, snapshot_interval: int = 3600):
+    """스냅샷 핸들러 초기화"""
+    global _snapshot_handler
+    if _snapshot_handler is None:
+        _snapshot_handler = MQTTSnapshotHandler(token, serial_number, snapshot_interval)
+        debug_print_main("[MQTT] 스냅샷 핸들러 초기화됨")
+
+def mqtt_publish_only(topic, payload, token=None):
     global last_mqtt_response
     global last_mqtt_status_code
     last_mqtt_status_code = None

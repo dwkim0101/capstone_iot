@@ -1,6 +1,3 @@
-"""
-DUET 모니터링 애플리케이션 메인 모듈
-"""
 import sys
 import tkinter as tk
 import argparse
@@ -28,6 +25,7 @@ DEBUG = True
 
 def debug_print_main(*args, **kwargs):
     """메인 모듈 디버깅 메시지 출력"""
+    print("[디버깅] debug_print_main 함수 호출됨")  # 함수 호출 확인용 메시지
     if DEBUG:
         message = " ".join(str(arg) for arg in args)
         print("[메인 모듈 디버그]", message, **kwargs)
@@ -121,6 +119,60 @@ def show_mode_selector(root):
         debug_print_main(traceback.format_exc())
         return "full"  # 오류 발생 시 기본값 반환
 
+def login_request(email, password):
+    try:
+        url = LOGIN_URL
+        data = {"email": email, "password": password}
+        debug_print_main(f"[로그인 요청] URL: {url}")
+        debug_print_main(f"[로그인 요청] 데이터: {data}")
+
+        try:
+            debug_print_main("[로그인 요청] POST 요청 전송 중...")
+            resp = requests.post(
+                url,
+                json=data,
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                timeout=10
+            )
+            
+            debug_print_main(f"[로그인 응답] 상태 코드: {resp.status_code}")
+            debug_print_main(f"[로그인 응답] 헤더: {dict(resp.headers)}")
+            debug_print_main(f"[로그인 응답] 본문: '{resp.text}'")
+
+        except Exception as e:
+            debug_print_main(f"[로그인 오류] POST 요청 실패: {e}")
+            return None, None
+
+        if resp.status_code == 200:
+            debug_print_main("[로그인 성공] 상태 코드 200 확인")
+            
+            # Flutter 코드와 동일하게 헤더에서 토큰 추출
+            access_token = resp.headers.get('accessToken')
+            refresh_token = resp.headers.get('refreshToken')
+            
+            debug_print_main(f"[로그인 응답] accessToken: {'찾음' if access_token else '없음'}")
+            debug_print_main(f"[로그인 응답] refreshToken: {'찾음' if refresh_token else '없음'}")
+
+            if access_token and refresh_token:
+                debug_print_main("[로그인 성공] 토큰 추출 완료")
+                return access_token, refresh_token
+            
+            debug_print_main("[로그인 실패] 토큰이 응답 헤더에 없습니다")
+            return None, None
+            
+        else:
+            debug_print_main(f"[로그인 실패] 상태 코드: {resp.status_code}")
+            debug_print_main(f"[로그인 실패] 응답: {resp.text}")
+            return None, None
+
+    except Exception as e:
+        debug_print_main(f"[로그인 오류] 예외 발생: {e}")
+        debug_print_main(traceback.format_exc())
+        return None, None
+
 def main():
     """메인 함수"""
     # 디버그 로그 파일 생성
@@ -177,6 +229,7 @@ def main():
                 }
                 debug_print_main(f"[토큰 재발급 요청] headers: {headers}")
                 # 바디 없이, headers에만 쿠키를 넣어 요청
+                debug_print_main("[디버깅] requests.post 호출 직전")
                 resp = requests.post(REISSUE_URL, headers=headers, timeout=5)
                 debug_print_main(f"[토큰 재발급 응답] status: {resp.status_code}, body: {resp.text}, headers: {dict(resp.headers)}")
                 if resp.status_code == 200:
